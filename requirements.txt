@@ -1,0 +1,7 @@
+numpy==1.19.3
+jupyter==1.0.0
+pynwb==1.4.0
+h5py==2.10.0
+isodate==0.6.0
+git+https://github.com/catalystneuro/nwb-conversion-tools
+git+https://github.com/NeurodataWithoutBorders/nwb-jupyter-widgets
