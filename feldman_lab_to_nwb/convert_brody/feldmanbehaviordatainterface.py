@@ -4,7 +4,7 @@ from pynwb import NWBFile
 
 
 class FeldmanBehaviorDataInterface(BaseDataInterface):
-    """Conversion class for the Brody lab behavioral data."""
+    """Conversion class for the Feldman lab behavioral data."""
 
     @classmethod
     def get_source_schema(cls):
@@ -13,6 +13,6 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
         raise NotImplementedError("Not built yet!")
 
     def run_conversion(self, nwbfile: NWBFile, metadata: dict):
-        """Primary conversion function for the custom Brody lab behavioral interface."""
+        """Primary conversion function for the custom Feldman lab behavioral interface."""
         # TODO
         raise NotImplementedError("Not built yet!")
