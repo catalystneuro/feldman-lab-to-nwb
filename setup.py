@@ -15,6 +15,6 @@ setup(
     include_package_data=True,
     install_requires=[
         'matplotlib', 'scipy', 'hdf5storage', 'jupyter', 'xlrd', 'h5py', 'pynwb', 'spikeextractors',
-        'nwb-conversion-tools'
+        'nwb-conversion-tools', 'nwbwidget'
     ],
 )
