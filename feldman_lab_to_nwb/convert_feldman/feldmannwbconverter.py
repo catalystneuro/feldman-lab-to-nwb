@@ -1,4 +1,6 @@
 """Authors: Cody Baker."""
+from pathlib import Path
+
 from nwb_conversion_tools import NWBConverter, SpikeGLXRecordingInterface, SpikeGLXLFPInterface
 
 from .feldmanbehaviordatainterface import FeldmanBehaviorDataInterface
@@ -14,5 +16,13 @@ class FeldmanNWBConverter(NWBConverter):
     )
 
     def get_metadata(self):
-        # TODO
-        raise NotImplementedError("Not built yet!")
+        behavior_folder_path = Path(self.data_interface_objects['Behavior'].source_data['folder_path'])
+        session_id = "_".join(next(behavior_folder_path.iterdir()).stem.split("_")[:3])
+
+        metadata = super().get_metadata()
+        metadata['NWBFile'].update(
+            session_id=session_id,
+            institution="UC Berkeley",
+            lab="Feldman"
+        )
+        return metadata
