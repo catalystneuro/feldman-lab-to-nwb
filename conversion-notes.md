@@ -1,7 +1,7 @@
 # Conversion notes for Feldman lab project.
 # Questions are in braces []
 
-Each NWB session is broken up into multiple ordered (ascending) "segments", indicated by the "_S{\d+}_" regular expression within each triple of (header, stimulus, trials) csv files.
+Each NWB session is broken up into multiple ordered (ascending) "segments", indicated by the "\_S{\d+}\_" regular expression within each triple of (header, stimulus, trials) csv files.
 
 ## header.csv
 
