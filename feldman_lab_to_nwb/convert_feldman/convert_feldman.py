@@ -14,11 +14,13 @@ nwbfile_path = base_path / "EarlyTesting.nwb"
 
 # Point to the various files for the conversion
 raw_data_path = base_path / "Neuropixels_Feldman" / "210209" / "SpikeGLX"
-session_name = "LR_210209_g0"
-# session_name = "LR_210209_g1"
-# session_name = "LR_210209_2_g0"
-# session_name = "LR_210209_2_g1"
-raw_data_file = raw_data_path / session_name / f"{session_name}_imec0" / f"{session_name}_g0_t0.imec0.ap.bin"
+raw_session_name = "LR_210209_g0"
+# raw_session_name = "LR_210209_g1"
+# raw_session_name = "LR_210209_2_g0"
+# raw_session_name = "LR_210209_2_g1"
+raw_data_file = (
+    raw_data_path / raw_session_name / f"{raw_session_name}_imec0" / f"{raw_session_name}_t0.imec0.ap.bin"
+)
 lfp_data_file = raw_data_file.parent / raw_data_file.name.replace("ap", "lf")
 behavior_folder_path = base_path / "ADRIAN"
 
@@ -42,11 +44,11 @@ stub_test = True
 
 # Run the conversion
 source_data = dict(
-    # SpikeGLXRecording=dict(file_path=str(raw_data_file)),
-    # SpikeGLXLFP=dict(file_path=str(lfp_data_file)),
+    SpikeGLXRecording=dict(file_path=str(raw_data_file)),
+    SpikeGLXLFP=dict(file_path=str(lfp_data_file)),
     Behavior=dict(folder_path=str(behavior_folder_path))
 )
-conversion_options = dict(SpikeGLXRecording=dict(stub_test=stub_test))
+conversion_options = dict(SpikeGLXRecording=dict(stub_test=stub_test), SpikeGLXLFP=dict(stub_test=stub_test))
 converter = FeldmanNWBConverter(source_data=source_data)
 metadata = converter.get_metadata()
 metadata['NWBFile'].update(session_description=session_description)
