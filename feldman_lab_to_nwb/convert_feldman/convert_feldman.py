@@ -23,6 +23,7 @@ raw_data_file = (
 )
 lfp_data_file = raw_data_file.parent / raw_data_file.name.replace("ap", "lf")
 behavior_folder_path = base_path / "ADRIAN"
+nidq_synch_file = str(raw_data_path / raw_session_name / f"{raw_session_name}_t0.nidq.bin")
 
 # Enter Session and Subject information here - uncomment any fields you want to include
 session_description = "Enter session description here."
@@ -48,10 +49,14 @@ source_data = dict(
     SpikeGLXLFP=dict(file_path=str(lfp_data_file)),
     Behavior=dict(folder_path=str(behavior_folder_path))
 )
-conversion_options = dict(SpikeGLXRecording=dict(stub_test=stub_test), SpikeGLXLFP=dict(stub_test=stub_test))
+conversion_options = dict(
+    SpikeGLXRecording=dict(stub_test=stub_test),
+    SpikeGLXLFP=dict(stub_test=stub_test),
+    Behavior=dict(nidq_synch_file=nidq_synch_file)
+)
 converter = FeldmanNWBConverter(source_data=source_data)
 metadata = converter.get_metadata()
-metadata['NWBFile'].update(session_description=session_description)
+metadata["NWBFile"].update(session_description=session_description)
 metadata.update(Subject=subject_info)
 converter.run_conversion(
     nwbfile_path=str(nwbfile_path),
