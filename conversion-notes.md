@@ -26,7 +26,7 @@ The "LogicalStim" table describes the makeup of each stimulus (its elements, tim
 For each stimulus layout, every row is a trial, and each column indicates the
 
 1. "Posn": (ordinal position of this stimulus or element within the trial. (1=first stim in trial)
-2. "StimElem": Used as the "events" table "ID", which is either an element number (if "events" type is an element) or stimulus number (if type is a logical stimulus) or trial number (if type is a trial).
+2. "StimElem": Used as the "events" table "ID", which is either an element number (if "events" type is an element) or stimulus number (if type is a logical stimulus) or trial number (if type is a trial). This is equivalent to "StimNum" column from the trials.csv file.
 3. "Time_ms": time in ms after trial onset
 4. "Ampl": amplitude (microns for an element, or scaled fractional amplitude for a stimulus)
 
@@ -34,14 +34,8 @@ Thus I assume this file only represents "element" types from the "events" table.
 
 ## trials.csv
 
-For stimulus layout 1, with no reward events, the trials.csv doesn't seem to correspond to any data in the "events" table. But does contain the important information for the trials table in NWB, such as start/end time.
+For stimulus layout 1, with no reward events, the trials.csv doesn't seem to correspond uniquely to any data in the "events" table (the "StimNum" field is the "event.ID" for element types, but this is also in the stimulus.csv). But does contain the important information for the trials table in NWB, such as start/end time.
 
 [These may include invalid trials? Needs to be reconciled with the synch signals, etc.? As well as the ISS0 and arm times?]
-
-[No reward information makes its way into the "events" table? Maybe just b/c the currently shared data doesn't have any type=4 values.]
-
-
-## ToDo:
-
-1. Creating a basic trials table from the start/end times, might be able to attach strings of stimulus layouts, etc.
-2. Creating AnnotatedEvents table for other stimulus repetition information.
+[TrOutcome not used?]
+[No reward information makes its way into the "events" table? Maybe just b/c the currently shared data doesn't have any type=4 values?]
