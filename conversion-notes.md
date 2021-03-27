@@ -34,7 +34,7 @@ Thus I assume this file only represents "element" types from the "events" table.
 
 ## trials.csv
 
-For stimulus layout 1, with no reward events, the trials.csv doesn't seem to correspond uniquely to any data in the "events" table (the "StimNum" field is the "event.ID" for element types, but this is also in the stimulus.csv). But does contain the important information for the trials table in NWB, such as start/end time.
+For stimulus layout 1, with no reward events, the trials.csv doesn't seem to correspond uniquely to any data in the "events" table (the "StimNum" field is the "event.ID" for element types, but this is also in the stimulus.csv). Also the "StimOnsetTime" is simply the stimulus.csv "Time_ms" added to the trial start time. But the csv does contain the important information for the trials table in NWB, such as start/end time.
 
 [These may include invalid trials? Needs to be reconciled with the synch signals, etc.? As well as the ISS0 and arm times?]
 [TrOutcome not used?]
