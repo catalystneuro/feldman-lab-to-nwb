@@ -27,7 +27,7 @@ nidq_synch_file = str(raw_data_path / raw_session_name / f"{raw_session_name}_t0
 
 # Enter Session and Subject information here - uncomment any fields you want to include
 session_description = "Enter session description here."
-session_start = datetime(1970, 1, 1)  # (Year, Month, Day)
+# session_start_time = datetime(1970, 1, 1)  # not necessary if writing raw recording data (SpikeGLX sets it)
 
 subject_info = dict(
     subject_id="Name of experimental subject",  # Required for upload to DANDDI

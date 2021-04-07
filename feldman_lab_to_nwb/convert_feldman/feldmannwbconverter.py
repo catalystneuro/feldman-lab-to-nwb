@@ -18,10 +18,7 @@ class FeldmanNWBConverter(NWBConverter):
     def get_metadata(self):
         behavior_folder_path = Path(self.data_interface_objects["Behavior"].source_data["folder_path"])
         metadata = super().get_metadata()
-        metadata["NWBFile"].update(
-            institution="UC Berkeley",
-            lab="Feldman"
-        )
+        metadata["NWBFile"].update(institution="UC Berkeley", lab="Feldman")
         if "session_id" not in metadata["NWBFile"]:
             metadata["NWBFile"].update(session_id="_".join(next(behavior_folder_path.iterdir()).stem.split("_")[:3]))
         return metadata
