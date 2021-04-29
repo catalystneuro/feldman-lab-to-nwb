@@ -8,13 +8,6 @@ from .feldman_utils import get_trials_info
 class RapidTestingDataInterface(SpikeGLXRecordingInterface):
     """Conversion class for the Feldman lab behavioral data."""
 
-    # @classmethod
-    # def get_source_schema(cls):
-    #     return dict(
-    #         required=["nidq_file_path"],
-    #         properties=dict(nidq_file_path=dict(type="string"))
-    #     )
-
     def run_conversion(self, nwbfile: NWBFile, metadata: dict):
         """
         Rapid conversion of trial information recovered from the nidq file.
