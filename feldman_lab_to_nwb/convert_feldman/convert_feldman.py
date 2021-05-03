@@ -7,7 +7,7 @@ from datetime import timedelta, datetime
 from feldman_lab_to_nwb import FeldmanNWBConverter
 
 # Point to the base folder path for both recording data and Virmen
-base_path = Path("D:/Feldman")
+base_path = Path("E:/Feldman")
 
 # Name the NWBFile and point to the desired save path
 nwbfile_path = base_path / "EarlyTesting.nwb"
@@ -22,7 +22,7 @@ raw_data_file = (
     raw_data_path / raw_session_name / f"{raw_session_name}_imec0" / f"{raw_session_name}_t0.imec0.ap.bin"
 )
 lfp_data_file = raw_data_file.parent / raw_data_file.name.replace("ap", "lf")
-behavior_folder_path = base_path / "ADRIAN"
+behavior_folder_path = base_path / "Neuropixels_Feldman" / "210209"  / "ADRIAN"
 nidq_synch_file = str(raw_data_path / raw_session_name / f"{raw_session_name}_t0.nidq.bin")
 
 # Enter Session and Subject information here - uncomment any fields you want to include
@@ -45,13 +45,13 @@ stub_test = True
 
 # Run the conversion
 source_data = dict(
-    SpikeGLXRecording=dict(file_path=str(raw_data_file)),
-    SpikeGLXLFP=dict(file_path=str(lfp_data_file)),
+#    SpikeGLXRecording=dict(file_path=str(raw_data_file)),
+#    SpikeGLXLFP=dict(file_path=str(lfp_data_file)),
     Behavior=dict(folder_path=str(behavior_folder_path))
 )
 conversion_options = dict(
-    SpikeGLXRecording=dict(stub_test=stub_test),
-    SpikeGLXLFP=dict(stub_test=stub_test),
+#    SpikeGLXRecording=dict(stub_test=stub_test),
+#    SpikeGLXLFP=dict(stub_test=stub_test),
     Behavior=dict(nidq_synch_file=nidq_synch_file)
 )
 converter = FeldmanNWBConverter(source_data=source_data)
