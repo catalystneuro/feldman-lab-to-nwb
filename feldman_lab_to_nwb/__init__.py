@@ -1,1 +1,2 @@
 from .convert_feldman.feldmannwbconverter import FeldmanNWBConverter
+from .convert_feldman.rapidtestingnwbconverter import RapidTestingNWBConverter

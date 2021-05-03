@@ -7,7 +7,7 @@ import numpy as np
 
 from ndx_events import AnnotatedEventsTable
 from nwb_conversion_tools.basedatainterface import BaseDataInterface
-from nwb_conversion_tools.conversion_tools import check_module
+from nwb_conversion_tools.conversion_tools import get_module
 from pynwb import NWBFile
 from spikeextractors import SpikeGLXRecordingExtractor
 
@@ -139,8 +139,13 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
             element_id=elements,
             element_name=[element_index_label_map[str(x)] for x in elements]
         )
-        check_module(nwbfile=nwbfile, name="events", description="Processed event data.").add(annotated_events)
+        get_module(nwbfile=nwbfile, name="events", description="Processed event data.").add(annotated_events)
 
         # use trial times from nidq file
+        nwbfile.add_trial_column(name="stim_number", description="The identifier value for stimulus type.")
         for k in range(len(trial_times_from_nidq)):
-            nwbfile.add_trial(start_time=trial_times_from_nidq[k, 0], stop_time=trial_times_from_nidq[k, 1])
+            nwbfile.add_trial(
+                start_time=trial_times_from_nidq[k, 0],
+                stop_time=trial_times_from_nidq[k, 1],
+                stim_number=stimulus_numbers[k]
+            )
