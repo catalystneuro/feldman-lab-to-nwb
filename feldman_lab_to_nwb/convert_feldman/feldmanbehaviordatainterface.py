@@ -56,10 +56,6 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
         nwbfile.add_trial_column(name="stimulus_name", description="The custom label for the stimulus number.")
         nwbfile.add_trial_column(name="trial_type", description="The type index for each trial.")
         nwbfile.add_trial_column(name="trial_outcome", description="The outcome index for each trial.")
-        # nwbfile.add_trial_column(
-        #     name="ordinality",
-        #     description="Ordinal position of this element within the trial. E.g., '1' is the first stimulus in trial."
-        # )
         nwbfile.add_trial_column(name="amplitude", description="Amplitude of stimulus in microns.")
         nwbfile.add_trial_column(name="probability", description="Probability of stimulus being presented.")  # check descr
         nwbfile.add_trial_column(name="duration", description="Duration of stimulus in seconds.")
@@ -69,14 +65,7 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
         for header_segment in header_segments:
             header_data = pd.read_csv(header_segment, header=None, sep="\t", index_col=0).T
             trial_data = pd.read_csv(str(header_segment).replace("header", "trials"), header=0, sep="\t")
-            # only u sed for ordinality
-            # stimuli_data = pd.read_csv(str(header_segment).replace("header", "stimuli"), header=0, sep="\t")
-
-            stim_layout = int(header_data["StimLayout"].values[0]) - 1  # -1 for zero-indexing
-            if stim_layout != 0:
-                raise NotImplementedError(
-                    f"StimLayouts other than '{stim_layout_str[stim_layout]}' type have not yet been implemented!"
-                )
+            stimuli_data = pd.read_csv(str(header_segment).replace("header", "stimuli"), header=0, sep="\t")
 
             segment_number = header_data["SegmentNum"]
             p = re.compile("_S(\d+)_")
@@ -88,51 +77,101 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
                 )
             segment_number_from_file_name = int(res.group(1))
 
-            n_stim = int(header_data["StdStimN"])
-            if n_stim != 1:
-                raise NotImplementedError(
-                    f"StdStimN ({n_stim}) from header _data in segment file {header_segment} is not yet supported!"
-                )
-            segment_trial_starts = trial_times_from_nidq[segment_numbers_from_nidq == segment_number_from_file_name, 0]
-            segment_trial_ends = trial_times_from_nidq[segment_numbers_from_nidq == segment_number_from_file_name, 1]
-            segment_stimulus_onset_time = int(header_data["StdStimOnset"]) / 1e3
-            stimulus_times = segment_trial_starts + segment_stimulus_onset_time
+            stim_layout = int(header_data["StimLayout"].values[0]) - 1  # -1 for zero-indexing
+            if stim_layout == 1:
+                n_stim = int(header_data["StdStimN"])
+                if n_stim != 1:
+                    raise NotImplementedError(
+                        f"StdStimN ({n_stim}) from header _data in segment file {header_segment} is not yet supported!"
+                    )
 
-            # Ordinality would be used in extending n_stim > 1
-            # ordinality = stimuli_data["Posn"]
+                seg_index = segment_numbers_from_nidq == segment_number_from_file_name
+                segment_trial_starts = trial_times_from_nidq[seg_index, 0]
+                segment_trial_ends = trial_times_from_nidq[seg_index, 1]
+                segment_stimulus_onset_time = int(header_data["StdStimOnset"]) / 1e3
+                stimulus_times = segment_trial_starts + segment_stimulus_onset_time
 
-            amplitude_map = [int(x) for x in header_data[[x for x in header_data if "ElemAmp" in x]].iloc[0]]
-            probability_map = [int(x) for x in header_data[[x for x in header_data if "ElemProb" in x]].iloc[0]]
-            duration_map = [int(x) / 1e3 for x in header_data[[x for x in header_data if "ElemDur" in x]].iloc[0]]
-            shape_map = [int(x) for x in header_data[[x for x in header_data if "ElemShape" in x]].iloc[0]]
-            rise_map = [int(x) for x in header_data[[x for x in header_data if "ElemRise" in x]].iloc[0]]
-            GNG_map = [int(x) for x in header_data[[x for x in header_data if "ElemGNG" in x]].iloc[0]]
+                amplitude_map = [int(x) for x in header_data[[x for x in header_data if "ElemAmp" in x]].iloc[0]]
+                probability_map = [int(x) for x in header_data[[x for x in header_data if "ElemProb" in x]].iloc[0]]
+                duration_map = [int(x) / 1e3 for x in header_data[[x for x in header_data if "ElemDur" in x]].iloc[0]]
+                shape_map = [int(x) for x in header_data[[x for x in header_data if "ElemShape" in x]].iloc[0]]
+                rise_map = [int(x) for x in header_data[[x for x in header_data if "ElemRise" in x]].iloc[0]]
+                GNG_map = [int(x) for x in header_data[[x for x in header_data if "ElemGNG" in x]].iloc[0]]
 
-            elem_piezo = {x: header_data[x].values[0] for x in header_data if "ElemPiezo" in x}
-            elem_piezo_labels = {x: header_data[x].values[0] for x in header_data if "PiezoLabel" in x}
-            assert len(elem_piezo) == len(elem_piezo_labels), "Size mismatch between element piezo and piezo labels!"
-            element_index_label_pairs = [
-                [elem_piezo[x], elem_piezo_labels[y]] for x, y in zip(elem_piezo, elem_piezo_labels)
-            ]
-            element_index_label_map = dict(np.unique(element_index_label_pairs, axis=0))
+                elem_piezo = {x: header_data[x].values[0] for x in header_data if "ElemPiezo" in x}
+                elem_piezo_labels = {x: header_data[x].values[0] for x in header_data if "PiezoLabel" in x}
+                assert len(elem_piezo) == len(elem_piezo_labels), "Size mismatch between element piezo and piezo label!"
+                element_index_label_pairs = [
+                    [elem_piezo[x], elem_piezo_labels[y]] for x, y in zip(elem_piezo, elem_piezo_labels)
+                ]
+                element_index_label_map = dict(np.unique(element_index_label_pairs, axis=0))
 
-            trial_types = list(trial_data["TrType"])
-            trial_outcomes = list(trial_data["TrOutcome"])
+                trial_types = list(trial_data["TrType"])
+                trial_outcomes = list(trial_data["TrOutcome"])
 
-            for k in range(len(segment_trial_starts)):
-                nwbfile.add_trial(
-                    start_time=segment_trial_starts[k],
-                    stop_time=segment_trial_ends[k],
-                    stimulus_time=stimulus_times[k],
-                    stimulus_number=stimulus_numbers[k],
-                    stimulus_name=element_index_label_map[str(stimulus_numbers[k])],
-                    trial_type=trial_types[k],
-                    trial_outcome=trial_outcomes[k],
-                    # ordinality=ordinality[k],
-                    amplitude=amplitude_map[stimulus_numbers[k]],
-                    probability=probability_map[stimulus_numbers[k]],
-                    duration=duration_map[stimulus_numbers[k]],
-                    shape=shape_map[stimulus_numbers[k]],
-                    rise=rise_map[stimulus_numbers[k]],
-                    gng=GNG_map[stimulus_numbers[k]]
-                )
+                for k in range(len(segment_trial_starts)):
+                    nwbfile.add_trial(
+                        start_time=segment_trial_starts[k],
+                        stop_time=segment_trial_ends[k],
+                        stimulus_time=stimulus_times[k],
+                        stimulus_number=stimulus_numbers[k],
+                        stimulus_name=element_index_label_map[str(stimulus_numbers[k])],
+                        trial_type=trial_types[k],
+                        trial_outcome=trial_outcomes[k],
+                        amplitude=amplitude_map[stimulus_numbers[k]],
+                        probability=probability_map[stimulus_numbers[k]],
+                        duration=duration_map[stimulus_numbers[k]],
+                        shape=shape_map[stimulus_numbers[k]],
+                        rise=rise_map[stimulus_numbers[k]],
+                        gng=GNG_map[stimulus_numbers[k]]
+                    )
+            elif stim_layout == 5:
+                n_stim = int(header_data["StdStimN"])
+                seg_index = segment_numbers_from_nidq == segment_number_from_file_name
+                segment_trial_starts = trial_times_from_nidq[seg_index, 0]
+                segment_trial_ends = trial_times_from_nidq[seg_index, 1]
+                segment_stimulus_onset_time = int(header_data["StdStimOnset"]) / 1e3
+                stimulus_times = segment_trial_starts + segment_stimulus_onset_time
+
+                amplitude_map = [int(x) for x in header_data[[x for x in header_data if "ElemAmp" in x]].iloc[0]]
+                probability_map = [int(x) for x in header_data[[x for x in header_data if "ElemProb" in x]].iloc[0]]
+                duration_map = [int(x) / 1e3 for x in header_data[[x for x in header_data if "ElemDur" in x]].iloc[0]]
+                shape_map = [int(x) for x in header_data[[x for x in header_data if "ElemShape" in x]].iloc[0]]
+                rise_map = [int(x) for x in header_data[[x for x in header_data if "ElemRise" in x]].iloc[0]]
+                GNG_map = [int(x) for x in header_data[[x for x in header_data if "ElemGNG" in x]].iloc[0]]
+
+                elem_piezo = {x: header_data[x].values[0] for x in header_data if "ElemPiezo" in x}
+                elem_piezo_labels = {x: header_data[x].values[0] for x in header_data if "PiezoLabel" in x}
+                assert len(elem_piezo) == len(elem_piezo_labels), "Size mismatch between element piezo and piezo label!"
+                element_index_label_pairs = [
+                    [elem_piezo[x], elem_piezo_labels[y]] for x, y in zip(elem_piezo, elem_piezo_labels)
+                ]
+                element_index_label_map = dict(np.unique(element_index_label_pairs, axis=0))
+
+                trial_types = list(trial_data["TrType"])
+                trial_outcomes = list(trial_data["TrOutcome"])
+                reward_start_times = trial_data["RWStartTime"] - trial_data["TrStartTime"] + segment_trial_starts
+                reward_end_times = trial_data["RWEndTime"] - trial_data["TrStartTime"] + segment_trial_starts
+
+                nwbfile.add_trial_column(name="reward_start_time", description="Start time of reward.")  # check name
+                nwbfile.add_trial_column(name="reward_stop_time", description="Stop time of reward.")  # check name
+                for k in range(len(segment_trial_starts)):
+                    nwbfile.add_trial(
+                        start_time=segment_trial_starts[k],
+                        stop_time=segment_trial_ends[k],
+                        stimulus_time=stimulus_times[k],
+                        stimulus_number=stimulus_numbers[k],
+                        stimulus_name=element_index_label_map[str(stimulus_numbers[k])],
+                        trial_type=trial_types[k],
+                        trial_outcome=trial_outcomes[k],
+                        amplitude=amplitude_map[stimulus_numbers[k]],
+                        probability=probability_map[stimulus_numbers[k]],
+                        duration=duration_map[stimulus_numbers[k]],
+                        shape=shape_map[stimulus_numbers[k]],
+                        rise=rise_map[stimulus_numbers[k]],
+                        gng=GNG_map[stimulus_numbers[k]],
+                        reward_start_time=reward_start_times[k],
+                        reward_stop_time=reward_end_times[k]
+                    )
+            else:
+                raise NotImplementedError("StimLayouts other than 1 and 5 have not yet been implemented!")
