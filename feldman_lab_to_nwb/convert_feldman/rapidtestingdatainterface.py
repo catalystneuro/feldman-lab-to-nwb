@@ -1,6 +1,7 @@
 """Authors: Cody Baker."""
 from pathlib import Path
 
+import nwb_conversion_tools
 from nwb_conversion_tools import SpikeGLXRecordingInterface
 from pynwb import NWBFile
 from spikeextractors import NwbRecordingExtractor, SpikeGLXRecordingExtractor
@@ -32,9 +33,12 @@ class RapidTestingDataInterface(SpikeGLXRecordingInterface):
         electrode_extractor = SpikeGLXRecordingExtractor(
             file_path=infer_ap_filepath(nidq_file_path=self.source_data["file_path"])
         )
-        NwbRecordingExtractor.add_devices(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
-        NwbRecordingExtractor.add_electrode_groups(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
-        NwbRecordingExtractor.add_electrodes(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
+        # NwbRecordingExtractor.add_devices(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
+        # NwbRecordingExtractor.add_electrode_groups(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
+        # NwbRecordingExtractor.add_electrodes(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
+        nwb_conversion_tools.utils.spike_interface.add_devices(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
+        nwb_conversion_tools.utils.spike_interface.add_electrode_groups(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
+        nwb_conversion_tools.utils.spike_interface.add_electrodes(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
 
         (trial_numbers, stimulus_numbers, segment_numbers_from_nidq, trial_times_from_nidq) = get_trials_info(
             recording_nidq=self.recording_extractor
