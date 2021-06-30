@@ -16,7 +16,6 @@ class RapidTestingNWBConverter(NWBConverter):
         metadata["NWBFile"].update(institution="UC Berkeley", lab="Feldman")
         if "session_id" not in metadata["NWBFile"]:
             metadata["NWBFile"].update(
-                session_id=f"Rapid_Testing_{str(datetime.now())}",
-                session_start_time=datetime.now()
+                session_id=f"rapid_testing_{str(datetime.now())}"
             )
         return metadata
