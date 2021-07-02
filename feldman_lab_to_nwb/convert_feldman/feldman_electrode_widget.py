@@ -95,8 +95,6 @@ class ElectrodePositionSelector(widgets.VBox):
         response = calculate_response(nwbfile=electrodes.get_ancestor("NWBFile"))
         all_response = np.array([np.nan] * n_channels)
         all_response[unit_ids] = response
-        abs_all_response = np.array(all_response)
-        abs_all_response[~np.isnan(all_response)] = abs(all_response[~np.isnan(all_response)])
 
         self.fig = go.FigureWidget(
             [
