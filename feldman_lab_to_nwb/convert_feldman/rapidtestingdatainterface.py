@@ -24,9 +24,6 @@ class RapidTestingDataInterface(SpikeGLXRecordingInterface):
         )
         return electrode_interface.get_metadata()
 
-    def get_conversion_options(self):  # Need to override and clear SpikeGLX inheritence
-        return dict()
-
     def run_conversion(self, nwbfile: NWBFile, metadata: dict):
         """
         Rapid conversion of trial information recovered from the nidq file.
@@ -41,7 +38,7 @@ class RapidTestingDataInterface(SpikeGLXRecordingInterface):
         # NwbRecordingExtractor.add_electrodes(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
         nwb_conversion_tools.utils.spike_interface.add_devices(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
         nwb_conversion_tools.utils.spike_interface.add_electrode_groups(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
-        nwb_conversion_tools.utils.spike_interface.add_electrodes(recording=electrode_extractor, nwbfile=nwbfile)
+        nwb_conversion_tools.utils.spike_interface.add_electrodes(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
 
         (trial_numbers, stimulus_numbers, segment_numbers_from_nidq, trial_times_from_nidq) = get_trials_info(
             recording_nidq=self.recording_extractor
