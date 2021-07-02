@@ -12,6 +12,10 @@ import plotly.graph_objects as go
 BACKGROUND_COLOR = "#9FE19D"
 ELECTRODE_COLOR = "#000000"
 
+ELECTRODE_SIZE = 3
+DETECTED_SIZE = 10
+SELECTED_SIZE = 15
+
 
 def calculate_response(
         nwbfile: NWBFile,
@@ -84,12 +88,12 @@ class ElectrodePositionSelector(widgets.VBox):
         super().__init__()
         x = electrodes["rel_x"].data[:]
         y = electrodes["rel_y"].data[:]
+        n_channels = len(x)
 
         unit_ids = electrodes.get_ancestor("NWBFile").units.id.data[:]
-        n_units = len(x)
 
         response = calculate_response(nwbfile=electrodes.get_ancestor("NWBFile"))
-        all_response = np.array([np.nan] * n_units)
+        all_response = np.array([np.nan] * n_channels)
         all_response[unit_ids] = response
         abs_all_response = np.array(all_response)
         abs_all_response[~np.isnan(all_response)] = abs(all_response[~np.isnan(all_response)])
@@ -112,11 +116,10 @@ class ElectrodePositionSelector(widgets.VBox):
             ]
         )
         self.scatter = self.fig.data[0]
-
-        size = np.array([3] * n_units)
-        size[unit_ids] = 10
-        size[unit_ids[0]] = 15
-        self.scatter.marker.size = size
+        s = np.array([ELECTRODE_SIZE] * n_channels)
+        s[unit_ids] = DETECTED_SIZE
+        s[unit_ids[0]] = SELECTED_SIZE
+        self.scatter.marker.size = s
 
         self.scatter.on_click(self.update_point)
         self.fig.layout.hovermode = "closest"
@@ -140,12 +143,12 @@ class ElectrodePositionSelector(widgets.VBox):
         self.children = [self.fig]
 
     def update(self, electrodes, index: int = 0):
-        n_electrodes = len(self.scatter.marker.size)
+        n_channels = len(self.scatter.marker.size)
         units_idx = np.where(np.array(self.scatter.marker.size) >= 10)[0]
 
-        s = np.array([3] * n_electrodes)
-        s[units_idx] = 10
-        s[units_idx[index]] = 15
+        s = np.array([ELECTRODE_SIZE] * n_channels)
+        s[units_idx] = DETECTED_SIZE
+        s[units_idx[index]] = SELECTED_SIZE
 
         with self.fig.batch_update():
             self.scatter.marker.size = s
@@ -154,21 +157,21 @@ class ElectrodePositionSelector(widgets.VBox):
 class PSTHWithElectrodeSelector(widgets.HBox):
 
     def update_point(self, trace, points, selector):
-        units_data = np.array(self.electrode_position_selector.scatter.marker.size) >= 10
-        my_point = points.point_inds[0]
-        if units_data[my_point]:
-            n_units = len(units_data)
-
-            s = np.array([3] * n_units)
-            s[units_data] = 10
-            s[my_point] = 15
+        n_channels = len(self.electrode_position_selector.scatter.marker.size)
+        is_unit = np.array(self.electrode_position_selector.scatter.marker.size) >= 10
+        index = points.point_inds[0]
+        if is_unit[index]:
+            s = np.array([3] * n_channels)
+            s[is_unit] = 10
+            s[index] = 15
 
             with self.electrode_position_selector.fig.batch_update():
                 self.electrode_position_selector.scatter.marker.size = s
 
         self.psth_widget.unit_controller.value = np.where(
-            np.array(self.electrode_position_selector.scatter.marker.size)[units_data] == 15
+            np.array(self.electrode_position_selector.scatter.marker.size)[is_unit] == 15
         )[0][0]
+
 
     def __init__(self, units):
         super().__init__()
