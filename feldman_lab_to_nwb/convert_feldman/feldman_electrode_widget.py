@@ -1,6 +1,7 @@
 import numpy as np
 
 from ipywidgets import widgets
+from pynwb import NWBFile
 from pynwb.misc import Units
 from nwbwidgets import default_neurodata_vis_spec
 from nwbwidgets.misc import PSTHWidget
@@ -9,9 +10,71 @@ import plotly.graph_objects as go
 
 
 BACKGROUND_COLOR = "#9FE19D"
-ELECTRODE_COLOR = "#d81700"
+ELECTRODE_COLOR = "#000000"
 DETECTED_COLOR = "#002bd8"
-SELECTED_COLOR = "#fccb00"
+SELECTED_COLOR = "#FFFFFF"
+
+
+def calculate_response(
+        nwbfile: NWBFile,
+        pre_trial_window: float = 10.,
+        evoked_window: float = 1.,
+        stim_offset: float = .1,
+        std_threshold: float = 1e-6
+):
+    """
+    Calculate the reponse of units from the table of the NWBFile.
+
+    Evaluates as the difference between pre-trial and post-presentation
+    spiking rates scaled by the pre-stimulus noise levels.
+
+    Parameters
+    ----------
+    nwbfile : NWBFile
+        Source of the units table.
+    pre_trial_window : float, optional
+        Length of time to evaluate pre-trial spiking over, in seconds.
+    evoked_window : float, optional
+        Length of time to evaluate evoked spiking over, in seconds.
+    stim_offset : float, optional
+        The amount of time in seconds after the start of trial that evokes spiking activity.
+    std_threshold : float, optional
+        Sets all values with a standard deviation in spiking rate below this threshold to NaN.
+    """
+    units_spk_time = nwbfile.units.spike_times.data[:]
+    units_spk_time_index = nwbfile.units.spike_times_index.data[:]
+    trial_starts = nwbfile.trials.start_time.data[:]
+
+    unit_avg_evoked_spk_rate = []
+    unit_avg_prestim_spk_rate = []
+    unit_std_prestim_spk_rate = []
+    response = []
+    for j, _ in enumerate(units_spk_time_index):
+        spk_idx_lb = 0 if j == 0 else units_spk_time_index[j-1]
+        spks = units_spk_time[spk_idx_lb:units_spk_time_index[j]]
+        evoked_spk_rate = []
+        prestim_spk_rate = []
+        for trial_start in trial_starts:
+            evoked_spk_rate.append(
+                sum(
+                    (spks >= trial_start + stim_offset) & (spks < trial_start + stim_offset + evoked_window)
+                ) / evoked_window
+            )
+            prestim_spk_rate.append(
+                sum((spks >= trial_start - pre_trial_window) & (spks < trial_start)) / pre_trial_window
+            )
+
+        valid_trials = np.array(prestim_spk_rate) != 0.0
+        unit_avg_evoked_spk_rate.append(np.mean(evoked_spk_rate, where=valid_trials))
+        unit_avg_prestim_spk_rate.append(np.mean(prestim_spk_rate, where=valid_trials))
+        unit_std_prestim_spk_rate.append(np.std(prestim_spk_rate, where=valid_trials))
+
+    for j, _ in enumerate(units_spk_time_index):
+        if unit_std_prestim_spk_rate[j] <= std_threshold:
+            response.append(np.nan)
+        else:
+            response.append((unit_avg_evoked_spk_rate[j] - unit_avg_prestim_spk_rate[j]) / unit_std_prestim_spk_rate[j])
+    return np.array(response)
 
 
 class ElectrodePositionSelector(widgets.VBox):
@@ -24,27 +87,37 @@ class ElectrodePositionSelector(widgets.VBox):
         x = electrodes["rel_x"].data[:]
         y = electrodes["rel_y"].data[:]
 
-        units_data = electrodes.get_ancestor("NWBFile").units.id.data[:]
+        unit_ids = electrodes.get_ancestor("NWBFile").units.id.data[:]
         n_units = len(x)
+
+        response = calculate_response(nwbfile=electrodes.get_ancestor("NWBFile"))
+        all_response = np.array([np.nan] * n_units)
+        all_response[unit_ids] = response
+        abs_all_response = np.array(all_response)
+        abs_all_response[~np.isnan(all_response)] = abs(all_response[~np.isnan(all_response)])
+
         self.fig = go.FigureWidget(
             [
                 go.Scatter(
                     x=x,
                     y=y,
                     mode="markers",
-                    text=[f"Channel ID: {j}" for j in electrodes.id.data[:]]
+                    text=[f"Channel ID: {j}" for j in electrodes.id.data[:]],
+                    marker=dict(
+                        colorbar=dict(title="Responsitivity"),
+                        cmax=max(response[~np.isnan(response)]),
+                        cmin=min(response[~np.isnan(response)]),
+                        color=all_response,
+                        colorscale="Viridis"
+                    ),
                 )
             ]
         )
         self.scatter = self.fig.data[0]
 
-        colors = np.array([ELECTRODE_COLOR] * n_units)
-        colors[units_data] = DETECTED_COLOR
-        colors[units_data[0]] = SELECTED_COLOR
-        self.scatter.marker.color = colors
         size = np.array([3] * n_units)
-        size[units_data] = 10
-        size[units_data[0]] = 15
+        size[unit_ids] = 10
+        size[unit_ids[0]] = 15
         self.scatter.marker.size = size
 
         self.scatter.on_click(self.update_point)
@@ -71,18 +144,12 @@ class ElectrodePositionSelector(widgets.VBox):
     def update(self, electrodes, index: int = 0):
         n_electrodes = len(self.scatter.marker.size)
         units_idx = np.where(np.array(self.scatter.marker.size) >= 10)[0]
-        units_data = np.array(self.scatter.marker.size)[units_idx]
-        n_units = len(units_data)
-        c = np.array([ELECTRODE_COLOR] * n_electrodes)
-        c[units_idx] = DETECTED_COLOR
-        c[units_idx[index]] = SELECTED_COLOR
 
         s = np.array([3] * n_electrodes)
         s[units_idx] = 10
         s[units_idx[index]] = 15
 
         with self.fig.batch_update():
-            self.scatter.marker.color = c
             self.scatter.marker.size = s
 
 
@@ -93,16 +160,12 @@ class PSTHWithElectrodeSelector(widgets.HBox):
         my_point = points.point_inds[0]
         if units_data[my_point]:
             n_units = len(units_data)
-            c = np.array([ELECTRODE_COLOR] * n_units)
-            c[units_data] = DETECTED_COLOR
-            c[my_point] = SELECTED_COLOR
 
             s = np.array([3] * n_units)
             s[units_data] = 10
             s[my_point] = 15
 
             with self.electrode_position_selector.fig.batch_update():
-                self.electrode_position_selector.scatter.marker.color = c
                 self.electrode_position_selector.scatter.marker.size = s
 
         self.psth_widget.unit_controller.value = np.where(
