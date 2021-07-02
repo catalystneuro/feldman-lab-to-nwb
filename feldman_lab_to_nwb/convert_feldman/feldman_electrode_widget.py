@@ -11,8 +11,6 @@ import plotly.graph_objects as go
 
 BACKGROUND_COLOR = "#9FE19D"
 ELECTRODE_COLOR = "#000000"
-DETECTED_COLOR = "#002bd8"
-SELECTED_COLOR = "#FFFFFF"
 
 
 def calculate_response(
