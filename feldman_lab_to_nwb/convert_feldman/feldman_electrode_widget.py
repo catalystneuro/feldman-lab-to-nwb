@@ -45,8 +45,7 @@ def calculate_response(
     """
     units_spk_time = nwbfile.units.spike_times.data[:]
     units_spk_time_index = nwbfile.units.spike_times_index.data[:]
-    trial_starts = nwbfile.trials.start_time.data[:]
-    alignment_time = getattr(nwbfile.trials, event_name).data[:]
+    alignment_times = getattr(nwbfile.trials, event_name).data[:]
 
     unit_avg_evoked_spk_rate = []
     unit_avg_prestim_spk_rate = []
@@ -57,7 +56,7 @@ def calculate_response(
         spks = units_spk_time[spk_idx_lb:units_spk_time_index[j]]
         evoked_spk_rate = []
         prestim_spk_rate = []
-        for trial_start in trial_starts:
+        for alignment_time in alignment_times:
             evoked_spk_rate.append(
                 sum((spks >= alignment_time) & (spks < alignment_time + evoked_window)) / evoked_window
             )
@@ -66,16 +65,28 @@ def calculate_response(
             )
 
         valid_trials = np.array(prestim_spk_rate) != 0.0
-        unit_avg_evoked_spk_rate.append(np.mean(evoked_spk_rate, where=valid_trials))
-        unit_avg_prestim_spk_rate.append(np.mean(prestim_spk_rate, where=valid_trials))
-        unit_std_prestim_spk_rate.append(np.std(prestim_spk_rate, where=valid_trials))
+        if any(valid_trials):
+            unit_avg_evoked_spk_rate.append(np.mean(evoked_spk_rate, where=valid_trials))
+            unit_avg_prestim_spk_rate.append(np.mean(prestim_spk_rate, where=valid_trials))
+            unit_std_prestim_spk_rate.append(np.std(prestim_spk_rate, where=valid_trials))
+        else:
+            unit_avg_evoked_spk_rate.append(np.nan)
+            unit_avg_prestim_spk_rate.append(np.nan)
+            unit_std_prestim_spk_rate.append(np.nan)
 
     for j, _ in enumerate(units_spk_time_index):
         if unit_std_prestim_spk_rate[j] <= std_threshold:
             response.append(np.nan)
         else:
             response.append((unit_avg_evoked_spk_rate[j] - unit_avg_prestim_spk_rate[j]) / unit_std_prestim_spk_rate[j])
-    return np.array(response)
+    internals = dict(
+        evoked_spk_rate=evoked_spk_rate,
+        prestim_spk_rate=prestim_spk_rate,
+        unit_avg_evoked_spk_rate=unit_avg_evoked_spk_rate,
+        unit_avg_prestim_spk_rate=unit_avg_prestim_spk_rate,
+        unit_std_prestim_spk_rate=unit_std_prestim_spk_rate
+    )
+    return np.array(response), internals
 
 
 class ElectrodePositionSelector(widgets.VBox):
@@ -139,7 +150,7 @@ class ElectrodePositionSelector(widgets.VBox):
 
         self.children = [self.fig]
 
-    def update(self, electrodes, index: int = 0):
+    def update_selected(self, electrodes, index: int = 0):
         n_channels = len(self.scatter.marker.size)
         units_idx = np.where(np.array(self.scatter.marker.size) >= 10)[0]
 
@@ -150,23 +161,34 @@ class ElectrodePositionSelector(widgets.VBox):
         with self.fig.batch_update():
             self.scatter.marker.size = s
 
+    def update_response(self, electrodes, psth_time_info):
+        unit_ids = electrodes.get_ancestor("NWBFile").units.id.data[:]
+        n_channels = len(self.scatter.marker.size)
+        response = calculate_response(nwbfile=electrodes.get_ancestor("NWBFile"), **psth_time_info)
+        all_response = np.array([np.nan] * n_channels)
+        all_response[unit_ids] = response
+
+        self.scatter.marker.cmax = max(response[~np.isnan(response)])
+        self.scatter.marker.cmin = min(response[~np.isnan(response)])
+        self.scatter.marker.color = all_response
+
 
 class PSTHWithElectrodeSelector(widgets.HBox):
 
     def update_point(self, trace, points, selector):
         n_channels = len(self.electrode_position_selector.scatter.marker.size)
-        is_unit = np.array(self.electrode_position_selector.scatter.marker.size) >= 10
+        is_unit = np.array(self.electrode_position_selector.scatter.marker.size) >= DETECTED_SIZE
         index = points.point_inds[0]
         if is_unit[index]:
-            s = np.array([3] * n_channels)
-            s[is_unit] = 10
-            s[index] = 15
+            s = np.array([ELECTRODE_SIZE] * n_channels)
+            s[is_unit] = DETECTED_SIZE
+            s[index] = SELECTED_SIZE
 
             with self.electrode_position_selector.fig.batch_update():
                 self.electrode_position_selector.scatter.marker.size = s
 
         self.psth_widget.unit_controller.value = np.where(
-            np.array(self.electrode_position_selector.scatter.marker.size)[is_unit] == 15
+            np.array(self.electrode_position_selector.scatter.marker.size)[is_unit] == SELECTED_SIZE
         )[0][0]
 
     def __init__(self, units):
@@ -184,9 +206,20 @@ class PSTHWithElectrodeSelector(widgets.HBox):
 
         self.children = [self.psth_widget, self.electrode_position_selector]
         self.psth_widget.unit_controller.observe(self.handle_unit_controller, "value")
+        self.psth_widget.before_ft.observe(self.handle_response, "value")
+        self.psth_widget.after_ft.observe(self.handle_response, "value")
+        self.psth_widget.trial_event_controller.observe(self.handle_response, "value")
 
     def handle_unit_controller(self, change):
-        self.electrode_position_selector.update(electrodes=self.electrodes, index=change["owner"].index)
+        self.electrode_position_selector.update_selected(electrodes=self.electrodes, index=change["owner"].index)
+
+    def handle_response(self, change):
+        psth_time_info = dict(
+            pre_trial_window=self.psth_widget.after_ft.value,
+            evoked_window=self.psth_widget.after_ft.value,
+            event_name=self.psth_widget.trial_event_controller.value,
+        )
+        self.electrode_position_selector.update_response(electrodes=self.electrodes, psth_time_info=psth_time_info)
 
 
 default_neurodata_vis_spec[Units]["Grouped PSTH"] = PSTHWithElectrodeSelector
