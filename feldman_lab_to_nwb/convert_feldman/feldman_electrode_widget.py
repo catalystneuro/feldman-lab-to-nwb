@@ -18,11 +18,11 @@ SELECTED_SIZE = 15
 
 
 def calculate_response(
-        nwbfile: NWBFile,
-        pre_trial_window: float = 10.,
-        evoked_window: float = 1.,
-        stim_offset: float = .1,
-        std_threshold: float = 1e-6
+    nwbfile: NWBFile,
+    pre_trial_window: float,
+    evoked_window: float,
+    event_name: str,
+    std_threshold: float = 1e-6
 ):
     """
     Calculate the reponse of units from the table of the NWBFile.
@@ -34,18 +34,19 @@ def calculate_response(
     ----------
     nwbfile : NWBFile
         Source of the units table.
-    pre_trial_window : float, optional
+    pre_trial_window : float
         Length of time to evaluate pre-trial spiking over, in seconds.
-    evoked_window : float, optional
+    evoked_window : float
         Length of time to evaluate evoked spiking over, in seconds.
-    stim_offset : float, optional
-        The amount of time in seconds after the start of trial that evokes spiking activity.
+    event_name : str
+        Name of event from trials table to align to.
     std_threshold : float, optional
         Sets all values with a standard deviation in spiking rate below this threshold to NaN.
     """
     units_spk_time = nwbfile.units.spike_times.data[:]
     units_spk_time_index = nwbfile.units.spike_times_index.data[:]
     trial_starts = nwbfile.trials.start_time.data[:]
+    alignment_time = getattr(nwbfile.trials, event_name).data[:]
 
     unit_avg_evoked_spk_rate = []
     unit_avg_prestim_spk_rate = []
@@ -58,12 +59,10 @@ def calculate_response(
         prestim_spk_rate = []
         for trial_start in trial_starts:
             evoked_spk_rate.append(
-                sum(
-                    (spks >= trial_start + stim_offset) & (spks < trial_start + stim_offset + evoked_window)
-                ) / evoked_window
+                sum((spks >= alignment_time) & (spks < alignment_time + evoked_window)) / evoked_window
             )
             prestim_spk_rate.append(
-                sum((spks >= trial_start - pre_trial_window) & (spks < trial_start)) / pre_trial_window
+                sum((spks >= alignment_time - pre_trial_window) & (spks < alignment_time)) / pre_trial_window
             )
 
         valid_trials = np.array(prestim_spk_rate) != 0.0
@@ -84,7 +83,7 @@ class ElectrodePositionSelector(widgets.VBox):
     def update_point(self, trace, points, selector):
         pass
 
-    def __init__(self, electrodes):
+    def __init__(self, electrodes, psth_time_info):
         super().__init__()
         x = electrodes["rel_x"].data[:]
         y = electrodes["rel_y"].data[:]
@@ -92,7 +91,7 @@ class ElectrodePositionSelector(widgets.VBox):
 
         unit_ids = electrodes.get_ancestor("NWBFile").units.id.data[:]
 
-        response = calculate_response(nwbfile=electrodes.get_ancestor("NWBFile"))
+        response = calculate_response(nwbfile=electrodes.get_ancestor("NWBFile"), **psth_time_info)
         all_response = np.array([np.nan] * n_channels)
         all_response[unit_ids] = response
 
@@ -170,13 +169,17 @@ class PSTHWithElectrodeSelector(widgets.HBox):
             np.array(self.electrode_position_selector.scatter.marker.size)[is_unit] == 15
         )[0][0]
 
-
     def __init__(self, units):
         super().__init__()
         self.electrodes = units.get_ancestor("NWBFile").electrodes
 
         self.psth_widget = PSTHWidget(units)
-        self.electrode_position_selector = ElectrodePositionSelector(self.electrodes)
+        psth_time_info = dict(
+            pre_trial_window=self.psth_widget.before_ft.value,
+            evoked_window=self.psth_widget.after_ft.value,
+            event_name=self.psth_widget.trial_event_controller.value,
+        )
+        self.electrode_position_selector = ElectrodePositionSelector(self.electrodes, psth_time_info=psth_time_info)
         self.electrode_position_selector.scatter.on_click(self.update_point)
 
         self.children = [self.psth_widget, self.electrode_position_selector]
