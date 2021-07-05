@@ -42,7 +42,7 @@ class ElectrodePositionSelector(widgets.VBox):
                     y=y,
                     mode="markers",
                     text=[
-                        f"Channel ID: {channel_id}, Responsitivity: {round(response, 2)}"
+                        f"Channel ID: {channel_id} <br> Responsitivity: {round(response, 2)}"
                         for channel_id, response in zip(electrodes.id.data[:], channel_response)
                     ],
                     marker=dict(
