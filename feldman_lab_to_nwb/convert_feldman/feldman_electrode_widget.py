@@ -8,13 +8,11 @@ from nwbwidgets.misc import PSTHWidget
 from nwbwidgets import base
 import plotly.graph_objects as go
 
-
-BACKGROUND_COLOR = "#9FE19D"
 ELECTRODE_COLOR = "#000000"
 
 ELECTRODE_SIZE = 3
 DETECTED_SIZE = 10
-SELECTED_SIZE = 15
+SELECTED_SIZE = 20
 
 
 def calculate_response(
@@ -133,7 +131,6 @@ class ElectrodePositionSelector(widgets.VBox):
             autosize=False,
             width=420,
             height=640,
-            plot_bgcolor=BACKGROUND_COLOR,
             xaxis=dict(showline=False, showticklabels=False, ticks=""),
             yaxis=dict(showline=False, showticklabels=False, ticks="")
         )
@@ -160,8 +157,8 @@ class PSTHWithElectrodeSelector(widgets.HBox):
         index = points.point_inds[0]
         if is_unit[index]:
             s = np.array([3] * n_channels)
-            s[is_unit] = 10
-            s[index] = 15
+            s[is_unit] = DETECTED_SIZE
+            s[index] = SELECTED_SIZE
 
             with self.electrode_position_selector.fig.batch_update():
                 self.electrode_position_selector.scatter.marker.size = s
