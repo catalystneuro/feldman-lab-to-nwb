@@ -229,11 +229,7 @@ class PSTHWithElectrodeSelector(widgets.HBox):
         is_unit = np.array(self.electrode_position_selector.scatter.marker.size) >= DETECTED_SIZE
         index = points.point_inds[0]
         if is_unit[index]:
-<<<<<<< HEAD
-            s = np.array([3] * n_channels)
-=======
             s = np.array([ELECTRODE_SIZE] * n_channels)
->>>>>>> 7576ce1faf7fd9ac713bc24ab1280daece5d5ec0
             s[is_unit] = DETECTED_SIZE
             s[index] = SELECTED_SIZE
 
