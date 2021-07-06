@@ -1,15 +1,46 @@
 """Authors: Cody Baker."""
-import pandas as pd
+from pandas import DataFrame, read_csv
 from pathlib import Path
 from warnings import warn
 import re
 import numpy as np
+from typing import Iterable, List
 
 from nwb_conversion_tools.basedatainterface import BaseDataInterface
 from pynwb import NWBFile
 from spikeextractors import SpikeGLXRecordingExtractor
 
 from .feldman_utils import get_trials_info
+
+
+def add_trial_columns(
+    nwbfile: NWBFile,
+    csv_data: DataFrame,
+    csv_column_names: Iterable[str],
+    trial_column_names: Iterable[str],
+    trial_column_descriptions: Iterable[str]
+):
+    valid_columns = dict()
+    for csv_column_name, trial_column_name, trial_column_description in zip(
+            csv_column_names,
+            trial_column_names,
+            trial_column_descriptions
+    ):
+        if len(set(csv_data[csv_column_name])) > 1:
+            valid_columns.update({csv_column_name: trial_column_name})
+            nwbfile.add_trial(name=trial_column_name, description=trial_column_description)
+    return valid_columns
+
+
+def add_trials(nwbfile: NWBFile, csv_data: DataFrame, segment_trial_starts: List[str], valid_columns: Iterable[str]):
+    trial_kwargs = dict()
+    for csv_column_name, trial_column_name in valid_columns.items():
+        trial_kwargs.update({trial_column_name: csv_data[csv_column_name]})
+    for k in range(len(segment_trial_starts)):
+        nwbfile.add_trial(
+            start_time=csv_data["TrStartTime"][k],
+            stop_time=csv_data["TrEndTime"][k],
+        )
 
 
 class FeldmanBehaviorDataInterface(BaseDataInterface):
@@ -27,7 +58,7 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
     def get_metadata(self):
         folder_path = Path(self.source_data["folder_path"])
         header_segments = [x for x in folder_path.iterdir() if "header" in x.name]
-        header_data = pd.read_csv(header_segments[0], header=None, sep="\t", index_col=0).T
+        header_data = read_csv(header_segments[0], header=None, sep="\t", index_col=0).T
         metadata = dict(NWBFile=dict(session_id=header_data["ExptName"].values[0]))
         return metadata
 
@@ -47,24 +78,44 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
 
         stim_layout_str = ["Std", "Trains", "IL", "Trains+IL", "RFMap", "2WC", "MWS", "MWD"]
 
-        nwbfile.add_trial_column(
-            name="stimulus_time",
-            description="The timestamp of the stimulus presentation within the trial."
+        column_name_mapping = dict(
+            StimNum="stimulus_number",
+            StimLayout="stimulus_layout",
+            StimOnsetTime="stimulus_onset_time",
+            StimOrder="stimulus_order",
+            Tone="tone",
+            TrOutcome="trial_outcome",
+            TrType="trial_type",
+            RewardTime="reward_time",
+            RWStartTime="reward_start_time",
+            RWEndTime="reward_end_time",
+            NLicks="number_of_licks",
+            LickInWindow="licks_in_window",
+            Laser="laser",
+            CumVol="cumulative_volume",
+            CumNRewards="cumulative_number_of_rewards"
         )
-        nwbfile.add_trial_column(name="stimulus_number", description="The identifier value for stimulus type.")
-        nwbfile.add_trial_column(name="stimulus_name", description="The custom label for the stimulus number.")
-        nwbfile.add_trial_column(name="trial_type", description="The type index for each trial.")
-        nwbfile.add_trial_column(name="trial_outcome", description="The outcome index for each trial.")
-        nwbfile.add_trial_column(name="amplitude", description="Amplitude of stimulus in microns.")
-        nwbfile.add_trial_column(name="probability", description="Probability of stimulus being presented.")  # check descr
-        nwbfile.add_trial_column(name="duration", description="Duration of stimulus in seconds.")
-        nwbfile.add_trial_column(name="shape", description="Shape index of stimulus.")  # check descr
-        nwbfile.add_trial_column(name="rise", description="Rise index of stimulus.")  # check descr
-        nwbfile.add_trial_column(name="gng", description="GNG of stimulus.")  # check descr??
+        column_description_mapping = dict(
+            StimNum="The identifier value for stimulus type.",
+            StimLayout="",
+            StimOnsetTime="The time the stimulus was presented.",
+            StimOrder="",
+            Tone="",
+            TrOutcome="The outcome index for each trial.",
+            TrType="The type index for each trial.",
+            RewardTime="",
+            RWStartTime="",
+            RWEndTime="",
+            NLicks="",
+            LickInWindow="",
+            Laser="",
+            CumVol="",
+            CumNRewards=""
+        )
         for header_segment in header_segments:
-            header_data = pd.read_csv(header_segment, header=None, sep="\t", index_col=0).T
-            trial_data = pd.read_csv(str(header_segment).replace("header", "trials"), header=0, sep="\t")
-            stimuli_data = pd.read_csv(str(header_segment).replace("header", "stimuli"), header=0, sep="\t")
+            header_data = read_csv(header_segment, header=None, sep="\t", index_col=0).T
+            trial_data = read_csv(str(header_segment).replace("header", "trials"), header=0, sep="\t")
+            stimuli_data = read_csv(str(header_segment).replace("header", "stimuli"), header=0, sep="\t")
 
             segment_number = header_data["SegmentNum"]
             p = re.compile("_S(\d+)_")
@@ -124,6 +175,44 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
                         rise=rise_map[stimulus_numbers[k]],
                         gng=GNG_map[stimulus_numbers[k]]
                     )
+            elif stim_layout == 4:
+                for header_segment in [1]:
+                    header_data = read_csv(header_segment, header=None, sep="\t", index_col=0).T
+                    trial_data = read_csv(str(header_segment).replace("header", "trials"), header=0, sep="\t")
+                    stimuli_data = read_csv(str(header_segment).replace("header", "stimuli"), header=0, sep="\t")
+
+                    csv_column_names = set(trial_data.keys()) - set(
+                            ["TrNum", "Segment", "ISS0Time", "Arm0Time", "TrStartTime", "TrEndTime"]
+                    )
+                    valid_columns = add_trial_columns(
+                        nwbfile=nwbfile,
+                        csv_data=trial_data,
+                        csv_column_names=csv_column_names,
+                        trial_column_names=column_name_mapping,
+                        trial_column_descriptions=column_description_mapping
+                    )
+                    add_trials(
+                        nwbfile=nwbfile,
+                        csv_data=trial_data,
+                        segment_trial_starts=segment_trial_starts,
+                        valid_columns=valid_columns
+                    )
+
+
+                    for k in range(len(segment_trial_starts)):
+                        nwbfile.add_trial(
+                            start_time=segment_trial_starts[k],
+                            stop_time=segment_trial_ends[k],
+                            stimulus_time=stimulus_times[k],
+                            stimulus_number=stimulus_numbers[k],
+                            stimulus_name=element_index_label_map[str(stimulus_numbers[k])],
+                            trial_type=trial_types[k],
+                            trial_outcome=trial_outcomes[k],
+                            duration=duration_map[stimulus_numbers[k]],
+                            shape=shape_map[stimulus_numbers[k]],
+                            rise=rise_map[stimulus_numbers[k]],
+                            gng=GNG_map[stimulus_numbers[k]]
+                        )
             elif stim_layout == 5:
                 n_stim = int(header_data["StdStimN"])
                 seg_index = segment_numbers_from_nidq == segment_number_from_file_name
