@@ -32,7 +32,7 @@ def add_trial_columns(
     return valid_columns
 
 
-def add_trials(nwbfile: NWBFile, csv_data: DataFrame, segment_trial_starts: List[str], valid_columns: Iterable[str]):
+def add_trials(nwbfile: NWBFile, mapped_csv_data: dict, segment_trial_starts: List[str], valid_columns: Iterable[str]):
     trial_kwargs = dict()
     for csv_column_name, trial_column_name in valid_columns.items():
         trial_kwargs.update({trial_column_name: csv_data[csv_column_name]})
@@ -40,6 +40,7 @@ def add_trials(nwbfile: NWBFile, csv_data: DataFrame, segment_trial_starts: List
         nwbfile.add_trial(
             start_time=csv_data["TrStartTime"][k],
             stop_time=csv_data["TrEndTime"][k],
+            **trial_kwargs
         )
 
 
@@ -197,22 +198,6 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
                         segment_trial_starts=segment_trial_starts,
                         valid_columns=valid_columns
                     )
-
-
-                    for k in range(len(segment_trial_starts)):
-                        nwbfile.add_trial(
-                            start_time=segment_trial_starts[k],
-                            stop_time=segment_trial_ends[k],
-                            stimulus_time=stimulus_times[k],
-                            stimulus_number=stimulus_numbers[k],
-                            stimulus_name=element_index_label_map[str(stimulus_numbers[k])],
-                            trial_type=trial_types[k],
-                            trial_outcome=trial_outcomes[k],
-                            duration=duration_map[stimulus_numbers[k]],
-                            shape=shape_map[stimulus_numbers[k]],
-                            rise=rise_map[stimulus_numbers[k]],
-                            gng=GNG_map[stimulus_numbers[k]]
-                        )
             elif stim_layout == 5:
                 n_stim = int(header_data["StdStimN"])
                 seg_index = segment_numbers_from_nidq == segment_number_from_file_name
