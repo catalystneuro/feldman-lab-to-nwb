@@ -4,7 +4,7 @@ from pathlib import Path
 from warnings import warn
 import re
 import numpy as np
-from typing import Iterable, List
+from typing import Dict, Iterable
 
 from nwb_conversion_tools.basedatainterface import BaseDataInterface
 from pynwb import NWBFile
@@ -15,33 +15,79 @@ from .feldman_utils import get_trials_info
 
 def add_trial_columns(
     nwbfile: NWBFile,
-    csv_data: DataFrame,
-    csv_column_names: Iterable[str],
-    trial_column_names: Iterable[str],
-    trial_column_descriptions: Iterable[str]
+    trial_column_names: Dict[str, str],
+    trial_column_descriptions: Dict[str, str],
+    exclude_columns: Iterable[str]
 ):
-    valid_columns = dict()
-    for csv_column_name, trial_column_name, trial_column_description in zip(
-            csv_column_names,
-            trial_column_names,
-            trial_column_descriptions
-    ):
-        if len(set(csv_data[csv_column_name])) > 1:
-            valid_columns.update({csv_column_name: trial_column_name})
-            nwbfile.add_trial(name=trial_column_name, description=trial_column_description)
-    return valid_columns
-
-
-def add_trials(nwbfile: NWBFile, mapped_csv_data: dict, segment_trial_starts: List[str], valid_columns: Iterable[str]):
-    trial_kwargs = dict()
-    for csv_column_name, trial_column_name in valid_columns.items():
-        trial_kwargs.update({trial_column_name: csv_data[csv_column_name]})
-    for k in range(len(segment_trial_starts)):
-        nwbfile.add_trial(
-            start_time=csv_data["TrStartTime"][k],
-            stop_time=csv_data["TrEndTime"][k],
-            **trial_kwargs
+    if nwbfile.trials is not None:
+        exclude_columns = list(exclude_columns)
+        inv_trial_column_names = {v: k for k, v in trial_column_names.items()}
+        for column in nwbfile.trials.columns:
+            exclude_columns.append(inv_trial_column_names.get(column.name, None))
+    valid_columns = set(trial_column_names) - set(exclude_columns)
+    for csv_column_name in valid_columns:
+        nwbfile.add_trial_column(
+            name=trial_column_names[csv_column_name],
+            description=trial_column_descriptions.get(csv_column_name, "No description.")
         )
+    existing_trial_column_names = [x.name for x in nwbfile.trials.columns]
+    for x in [
+        "stimulus_times",
+        "stimulus_elements",
+        "stimulus_amplitudes",
+        "stimulus_ordinalities",
+        "stimulus_rises",
+        "stimulus_gngs",
+        "stimulus_shapes",
+        "stimulus_durations",
+        "stimulus_probabilities",
+        "stimulus_piezo_labels"
+    ]:
+        if x not in existing_trial_column_names:
+            nwbfile.add_trial_column(name=x, description="", index=True)
+
+def add_trials(
+    nwbfile: NWBFile,
+    trial_column_names: Dict[str, str],
+    header_data: DataFrame,
+    trial_data: DataFrame,
+    stimulus_data: DataFrame,
+    exclude_columns: Iterable[str] = ()
+):
+    first_trial = int(header_data["FirstTrialNum"])
+    last_trial = int(header_data["LastTrialNum"])
+    
+    inv_trial_column_names = {v: k for k, v in trial_column_names.items()}
+    
+    n_elements = int(header_data["Nelements"])
+    stimulus_rises = np.array([int(header_data[f"ElemRise{x}"]) for x in range(n_elements)])
+    stimulus_gngs = np.array([int(header_data[f"ElemGNG{x}"]) for x in range(n_elements)])
+    stimulus_shapes = np.array([int(header_data[f"ElemShape{x}"]) for x in range(n_elements)])
+    stimulus_durations = np.array([float(header_data[f"ElemDur{x}"]) / 1e3 for x in range(n_elements)])
+    stimulus_probabilities = np.array([int(header_data[f"ElemProb{x}"]) for x in range(n_elements)])
+    stimulus_piezo_labels = np.array([str(header_data[f"PiezoLabel{x}"].values[0]) for x in range(n_elements)])
+    
+    for n, k in enumerate(range(first_trial, last_trial)):
+        trial_kwargs = dict()
+        for trial_column_name in inv_trial_column_names:
+            trial_kwargs.update({trial_column_name: trial_data[inv_trial_column_names[trial_column_name]][n]})
+        stimulus_elements = np.array(stimulus_data["StimElem"].loc[stimulus_data["Trial"] == k])
+        
+        trial_kwargs.update(
+            stimulus_times=np.array(trial_data["TrStartTime"][n] + np.array(stimulus_data["Time_ms"].loc[stimulus_data["Trial"] == k])) / 1e3
+        )
+        trial_kwargs.update(stimulus_elements=stimulus_elements)
+        trial_kwargs.update(stimulus_amplitudes=np.array(stimulus_data["Ampl"].loc[stimulus_data["Trial"] == k]))
+        trial_kwargs.update(stimulus_ordinalities=np.array(stimulus_data["Posn"].loc[stimulus_data["Trial"] == k]))
+        
+        trial_kwargs.update(stimulus_rises=[stimulus_rises[stimulus_element] for stimulus_element in stimulus_elements])
+        trial_kwargs.update(stimulus_gngs=[stimulus_gngs[stimulus_element] for stimulus_element in stimulus_elements])
+        trial_kwargs.update(stimulus_shapes=[stimulus_shapes[stimulus_element] for stimulus_element in stimulus_elements])
+        trial_kwargs.update(stimulus_durations=[stimulus_durations[stimulus_element] for stimulus_element in stimulus_elements])
+        trial_kwargs.update(stimulus_probabilities=[stimulus_probabilities[stimulus_element] for stimulus_element in stimulus_elements])
+        trial_kwargs.update(stimulus_piezo_labels=[stimulus_piezo_labels[stimulus_element] for stimulus_element in stimulus_elements])
+
+        nwbfile.add_trial(**trial_kwargs)
 
 
 class FeldmanBehaviorDataInterface(BaseDataInterface):
@@ -68,18 +114,20 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
         Primary conversion function for the custom Feldman lab behavioral interface.
         Uses the synch information in the nidq_synch_file to set trial times in NWBFile.
         """
+        folder_path = Path(self.source_data["folder_path"])
+
         (trial_numbers, stimulus_numbers, segment_numbers_from_nidq, trial_times_from_nidq) = get_trials_info(
             recording_nidq=SpikeGLXRecordingExtractor(file_path=nidq_synch_file)
         )
-
-        folder_path = Path(self.source_data["folder_path"])
         header_segments = [x for x in folder_path.iterdir() if "header" in x.name]
-        assert len(header_segments) == len(set(segment_numbers_from_nidq)), \
-            "Mismatch between number of segments extracted from nidq file and number of header.csv files!"
+        # assert len(header_segments) == len(set(segment_numbers_from_nidq)), \
+        #     "Mismatch between number of segments extracted from nidq file and number of header.csv files!"
 
         stim_layout_str = ["Std", "Trains", "IL", "Trains+IL", "RFMap", "2WC", "MWS", "MWD"]
-
-        column_name_mapping = dict(
+        exclude_columns = set(["TrNum", "Segment", "ISS0Time", "Arm0Time"])
+        trial_column_names = dict(
+            TrStartTime="start_time",
+            TrEndTime="stop_time",
             StimNum="stimulus_number",
             StimLayout="stimulus_layout",
             StimOnsetTime="stimulus_onset_time",
@@ -92,11 +140,11 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
             RWEndTime="reward_end_time",
             NLicks="number_of_licks",
             LickInWindow="licks_in_window",
-            Laser="laser",
+            Laser="laser_is_on",
             CumVol="cumulative_volume",
             CumNRewards="cumulative_number_of_rewards"
         )
-        column_description_mapping = dict(
+        trial_column_descriptions = dict(
             StimNum="The identifier value for stimulus type.",
             StimLayout="",
             StimOnsetTime="The time the stimulus was presented.",
@@ -113,138 +161,43 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
             CumVol="",
             CumNRewards=""
         )
+        last_end_time = 0  # shift value for later segments
         for header_segment in header_segments:
             header_data = read_csv(header_segment, header=None, sep="\t", index_col=0).T
             trial_data = read_csv(str(header_segment).replace("header", "trials"), header=0, sep="\t")
-            stimuli_data = read_csv(str(header_segment).replace("header", "stimuli"), header=0, sep="\t")
+            if trial_data["TrStartTime"].iloc[-1] == 0 and trial_data["TrEndTime"].iloc[-1] == 0:
+                trial_data = trial_data.iloc[:-1]
+            stimulus_data = read_csv(str(header_segment).replace("header", "stimuli"), header=0, sep="\t")
+            for x in set(trial_data.keys()) - set(["RewardTime"]):
+                if "Time" in x:
+                    trial_data[x].loc[trial_data[x] != 0] = trial_data[x].loc[trial_data[x] != 0] / 1e3 + last_end_time
+            trial_data["Laser"] = trial_data["Laser"].astype(bool)
+            last_end_time = trial_data["TrEndTime"].iloc[-1]
 
-            segment_number = header_data["SegmentNum"]
-            p = re.compile("_S(\d+)_")
-            res = p.search(header_segment.name)
-            if res is not None and segment_number.values[0] != res.group(1):
-                warn(
-                    f"Segment number in file name ({header_segment.name}) does not match internal value! "
-                    "Using file name."
-                )
-            segment_number_from_file_name = int(res.group(1))
+            # segment_number = header_data["SegmentNum"]
+            # p = re.compile("_S(\d+)_")
+            # res = p.search(header_segment.name)
+            # if res is not None and segment_number.values[0] != res.group(1):
+            #     warn(
+            #         f"Segment number in file name ({header_segment.name}) does not match internal value! "
+            #         "Using file name."
+            #     )
+            # segment_number_from_file_name = int(res.group(1))
+            # seg_index = segment_numbers_from_nidq == segment_number_from_file_name
+            # segment_trial_start_times = trial_times_from_nidq[seg_index, 0]
+            # segment_trial_stop_times = trial_times_from_nidq[seg_index, 1]
 
-            stim_layout = int(header_data["StimLayout"].values[0]) - 1  # -1 for zero-indexing
-            if stim_layout == 1:
-                n_stim = int(header_data["StdStimN"])
-                if n_stim != 1:
-                    raise NotImplementedError(
-                        f"StdStimN ({n_stim}) from header _data in segment file {header_segment} is not yet supported!"
-                    )
-
-                seg_index = segment_numbers_from_nidq == segment_number_from_file_name
-                segment_trial_starts = trial_times_from_nidq[seg_index, 0]
-                segment_trial_ends = trial_times_from_nidq[seg_index, 1]
-                segment_stimulus_onset_time = int(header_data["StdStimOnset"]) / 1e3
-                stimulus_times = segment_trial_starts + segment_stimulus_onset_time
-
-                amplitude_map = [int(x) for x in header_data[[x for x in header_data if "ElemAmp" in x]].iloc[0]]
-                probability_map = [int(x) for x in header_data[[x for x in header_data if "ElemProb" in x]].iloc[0]]
-                duration_map = [int(x) / 1e3 for x in header_data[[x for x in header_data if "ElemDur" in x]].iloc[0]]
-                shape_map = [int(x) for x in header_data[[x for x in header_data if "ElemShape" in x]].iloc[0]]
-                rise_map = [int(x) for x in header_data[[x for x in header_data if "ElemRise" in x]].iloc[0]]
-                GNG_map = [int(x) for x in header_data[[x for x in header_data if "ElemGNG" in x]].iloc[0]]
-
-                elem_piezo = {x: header_data[x].values[0] for x in header_data if "ElemPiezo" in x}
-                elem_piezo_labels = {x: header_data[x].values[0] for x in header_data if "PiezoLabel" in x}
-                assert len(elem_piezo) == len(elem_piezo_labels), "Size mismatch between element piezo and piezo label!"
-                element_index_label_pairs = [
-                    [elem_piezo[x], elem_piezo_labels[y]] for x, y in zip(elem_piezo, elem_piezo_labels)
-                ]
-                element_index_label_map = dict(np.unique(element_index_label_pairs, axis=0))
-
-                trial_types = list(trial_data["TrType"])
-                trial_outcomes = list(trial_data["TrOutcome"])
-
-                for k in range(len(segment_trial_starts)):
-                    nwbfile.add_trial(
-                        start_time=segment_trial_starts[k],
-                        stop_time=segment_trial_ends[k],
-                        stimulus_time=stimulus_times[k],
-                        stimulus_number=stimulus_numbers[k],
-                        stimulus_name=element_index_label_map[str(stimulus_numbers[k])],
-                        trial_type=trial_types[k],
-                        trial_outcome=trial_outcomes[k],
-                        amplitude=amplitude_map[stimulus_numbers[k]],
-                        probability=probability_map[stimulus_numbers[k]],
-                        duration=duration_map[stimulus_numbers[k]],
-                        shape=shape_map[stimulus_numbers[k]],
-                        rise=rise_map[stimulus_numbers[k]],
-                        gng=GNG_map[stimulus_numbers[k]]
-                    )
-            elif stim_layout == 4:
-                for header_segment in [1]:
-                    header_data = read_csv(header_segment, header=None, sep="\t", index_col=0).T
-                    trial_data = read_csv(str(header_segment).replace("header", "trials"), header=0, sep="\t")
-                    stimuli_data = read_csv(str(header_segment).replace("header", "stimuli"), header=0, sep="\t")
-
-                    csv_column_names = set(trial_data.keys()) - set(
-                            ["TrNum", "Segment", "ISS0Time", "Arm0Time", "TrStartTime", "TrEndTime"]
-                    )
-                    valid_columns = add_trial_columns(
-                        nwbfile=nwbfile,
-                        csv_data=trial_data,
-                        csv_column_names=csv_column_names,
-                        trial_column_names=column_name_mapping,
-                        trial_column_descriptions=column_description_mapping
-                    )
-                    add_trials(
-                        nwbfile=nwbfile,
-                        csv_data=trial_data,
-                        segment_trial_starts=segment_trial_starts,
-                        valid_columns=valid_columns
-                    )
-            elif stim_layout == 5:
-                n_stim = int(header_data["StdStimN"])
-                seg_index = segment_numbers_from_nidq == segment_number_from_file_name
-                segment_trial_starts = trial_times_from_nidq[seg_index, 0]
-                segment_trial_ends = trial_times_from_nidq[seg_index, 1]
-                segment_stimulus_onset_time = int(header_data["StdStimOnset"]) / 1e3
-                stimulus_times = segment_trial_starts + segment_stimulus_onset_time
-
-                amplitude_map = [int(x) for x in header_data[[x for x in header_data if "ElemAmp" in x]].iloc[0]]
-                probability_map = [int(x) for x in header_data[[x for x in header_data if "ElemProb" in x]].iloc[0]]
-                duration_map = [int(x) / 1e3 for x in header_data[[x for x in header_data if "ElemDur" in x]].iloc[0]]
-                shape_map = [int(x) for x in header_data[[x for x in header_data if "ElemShape" in x]].iloc[0]]
-                rise_map = [int(x) for x in header_data[[x for x in header_data if "ElemRise" in x]].iloc[0]]
-                GNG_map = [int(x) for x in header_data[[x for x in header_data if "ElemGNG" in x]].iloc[0]]
-
-                elem_piezo = {x: header_data[x].values[0] for x in header_data if "ElemPiezo" in x}
-                elem_piezo_labels = {x: header_data[x].values[0] for x in header_data if "PiezoLabel" in x}
-                assert len(elem_piezo) == len(elem_piezo_labels), "Size mismatch between element piezo and piezo label!"
-                element_index_label_pairs = [
-                    [elem_piezo[x], elem_piezo_labels[y]] for x, y in zip(elem_piezo, elem_piezo_labels)
-                ]
-                element_index_label_map = dict(np.unique(element_index_label_pairs, axis=0))
-
-                trial_types = list(trial_data["TrType"])
-                trial_outcomes = list(trial_data["TrOutcome"])
-                reward_start_times = trial_data["RWStartTime"] - trial_data["TrStartTime"] + segment_trial_starts
-                reward_end_times = trial_data["RWEndTime"] - trial_data["TrStartTime"] + segment_trial_starts
-
-                nwbfile.add_trial_column(name="reward_start_time", description="Start time of reward.")  # check name
-                nwbfile.add_trial_column(name="reward_stop_time", description="Stop time of reward.")  # check name
-                for k in range(len(segment_trial_starts)):
-                    nwbfile.add_trial(
-                        start_time=segment_trial_starts[k],
-                        stop_time=segment_trial_ends[k],
-                        stimulus_time=stimulus_times[k],
-                        stimulus_number=stimulus_numbers[k],
-                        stimulus_name=element_index_label_map[str(stimulus_numbers[k])],
-                        trial_type=trial_types[k],
-                        trial_outcome=trial_outcomes[k],
-                        amplitude=amplitude_map[stimulus_numbers[k]],
-                        probability=probability_map[stimulus_numbers[k]],
-                        duration=duration_map[stimulus_numbers[k]],
-                        shape=shape_map[stimulus_numbers[k]],
-                        rise=rise_map[stimulus_numbers[k]],
-                        gng=GNG_map[stimulus_numbers[k]],
-                        reward_start_time=reward_start_times[k],
-                        reward_stop_time=reward_end_times[k]
-                    )
-            else:
-                raise NotImplementedError("StimLayouts other than 1 and 5 have not yet been implemented!")
+            add_trial_columns(
+                nwbfile=nwbfile,
+                trial_column_names=trial_column_names,
+                trial_column_descriptions=trial_column_descriptions,
+                exclude_columns=exclude_columns.union(["TrStartTime", "TrEndTime"])
+            )
+            add_trials(
+                nwbfile=nwbfile,
+                trial_column_names=trial_column_names,
+                trial_data=trial_data,
+                stimulus_data=stimulus_data,
+                header_data=header_data,
+                exclude_columns=exclude_columns
+            )
