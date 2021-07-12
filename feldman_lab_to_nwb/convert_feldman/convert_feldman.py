@@ -25,6 +25,11 @@ lfp_data_file = raw_data_file.parent / raw_data_file.name.replace("ap", "lf")
 behavior_folder_path = base_path / "ADRIAN"
 nidq_synch_file = str(raw_data_path / raw_session_name / f"{raw_session_name}_t0.nidq.bin")
 
+# Necesssary information for decoding the nidq synchronization correctly
+# These are the indices of the channels in the nidq_synch_file responsible for tracking the two streams
+trial_ongoing_channel = 2
+event_channel = 5
+
 # Enter Session and Subject information here - uncomment any fields you want to include
 session_description = "Enter session description here."
 # session_start_time = datetime(1970, 1, 1)  # not necessary if writing raw recording data (SpikeGLX sets it)
@@ -52,7 +57,11 @@ source_data = dict(
 conversion_options = dict(
     SpikeGLXRecording=dict(stub_test=stub_test),
     SpikeGLXLFP=dict(stub_test=stub_test),
-    Behavior=dict(nidq_synch_file=nidq_synch_file)
+    Behavior=dict(
+        nidq_synch_file=nidq_synch_file,
+        trial_ongoing_channel=trial_ongoing_channel,
+        event_channel=event_channel
+    )
 )
 converter = FeldmanNWBConverter(source_data=source_data)
 metadata = converter.get_metadata()

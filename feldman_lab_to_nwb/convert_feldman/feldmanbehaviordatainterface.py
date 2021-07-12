@@ -33,14 +33,23 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
         metadata = dict(NWBFile=dict(session_id=header_data["ExptName"].values[0]))
         return metadata
 
-    def run_conversion(self, nwbfile: NWBFile, metadata: dict, nidq_synch_file: str):
+    def run_conversion(
+        self,
+        nwbfile: NWBFile,
+        metadata: dict,
+        nidq_synch_file: str,
+        trial_ongoing_channel: int,
+        event_channel: int
+    ):
         """
         Primary conversion function for the custom Feldman lab behavioral interface.
 
         Uses the synch information in the nidq_synch_file to set trial times in NWBFile.
         """
         (trial_numbers, stimulus_numbers, segment_numbers_from_nidq, trial_times_from_nidq) = get_trials_info(
-            recording_nidq=SpikeGLXRecordingExtractor(file_path=nidq_synch_file)
+            recording_nidq=SpikeGLXRecordingExtractor(file_path=nidq_synch_file),
+            trial_ongoing_channel=trial_ongoing_channel,
+            event_channel=event_channel
         )
 
         folder_path = Path(self.source_data["folder_path"])

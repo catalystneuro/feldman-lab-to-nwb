@@ -5,7 +5,7 @@ import numpy as np
 from spikeextractors import SpikeGLXRecordingExtractor
 
 
-def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_channel: int = 3, event_channel: int = 4):
+def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_channel: int, event_channel: int):
     """
     Parse trial number, stimulus number, and segment number for each trial.
 
