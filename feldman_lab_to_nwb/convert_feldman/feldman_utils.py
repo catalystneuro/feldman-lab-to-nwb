@@ -15,7 +15,7 @@ def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_ch
 
     Parameters
     ----------
-    recording_nidq: SpikeGLXRecordingExtractor
+    recording_nidq: se.SpikeGLXRecordingExtractor
         The NIDQ recording extractor
     trial_ongoing_channel: int
         The channel_id corresponding to the trial ongoing signal
@@ -24,20 +24,22 @@ def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_ch
 
     Returns
     -------
-    trial_numbers: numpy array
-        Array with trial id for each trial
-    stimulus_numbers: numpy array
-        Array with stimulus id for each trial
-    segment_numbers: numpy array
-        Array with segment id for each trial
-    trial_times: numpy array
-        Array with t_start and t_stop for each trial
+    trial_numbers: list
+        List with trial id for each trial
+    stimulus_numbers: list
+        List with stimulus id for each trial
+    segment_numbers: list
+        List with segment id for each trial
+    trial_times: list
+        List with t_start and t_stop for each trial
     """
     # define hex base and conversion
     hex_base = 16
     voltage_range = 4.5 * 1e6
-    hex_dict = {x: str(x) for x in range(10)}
-    hex_dict.update({x: chr(97+x-10) for x in range(10, 16)})  # ord('a')==97
+    hex_dict = {0: "0", 1: "1", 2: "2", 3: "3",
+                4: "4", 5: "5", 6: "6", 7: "7",
+                8: "8", 9: "9", 10: "a", 11: "b",
+                12: "c", 13: "d", 14: "e", 15: "f"}
 
     # get fs and define 10ms interval in samples (used to extract hex digits)
     nidq_fs = recording_nidq.get_sampling_frequency()
@@ -54,6 +56,16 @@ def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_ch
     # get trial start and trial stop indices
     t_start_idxs = np.where(np.diff(tr_trial_bin) > 0)[0]
     t_stop_idxs = np.where(np.diff(tr_trial_bin) < 0)[0]
+
+    # discard first stop event if it comes before a start event
+    if t_stop_idxs[0] < t_start_idxs[0]:
+        print("Discarding first trial")
+        t_stop_idxs = t_stop_idxs[1:]
+
+    # discard last start event if it comes after last stop event
+    if t_start_idxs[-1] > t_stop_idxs[-1]:
+        print("Discarding last trial")
+        t_start_idxs = t_start_idxs[:-1]
 
     assert len(t_start_idxs) == len(t_stop_idxs), "Found a different number of trial start and trial stop indices"
 
@@ -77,7 +89,7 @@ def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_ch
         # First 4 digits (10ms each) are the trial number
         for i in range(4):
             median_value = np.median(tr_events[i_start + 10:i_start + tenms_interval - 10])
-            digit = int(np.round(median_value * (hex_base - 1) / voltage_range))
+            digit = int(np.floor(median_value * (hex_base - 1) / voltage_range))
             trial_digits += hex_dict[digit]
             i_start += tenms_interval
         trial_numbers.append(int(trial_digits, hex_base))
@@ -85,7 +97,7 @@ def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_ch
         # Second 4 digits (10ms each) are the stimulus number
         for i in range(4):
             median_value = np.median(tr_events[i_start + 10:i_start + tenms_interval - 10])
-            digit = int(np.round(median_value * (hex_base - 1) / voltage_range))
+            digit = int(np.floor(median_value * (hex_base - 1) / voltage_range))
             stimulus_digits += hex_dict[digit]
             i_start += tenms_interval
         stimulus_numbers.append(int(stimulus_digits, hex_base))
@@ -93,9 +105,9 @@ def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_ch
         # Third 4 digits (10ms each) are the segment number
         for i in range(4):
             median_value = np.median(tr_events[i_start + 10:i_start + tenms_interval - 10])
-            digit = int(np.round(median_value * (hex_base - 1) / voltage_range))
+            digit = int(np.floor(median_value * (hex_base - 1) / voltage_range))
             segment_digits += hex_dict[digit]
             i_start += tenms_interval
         segment_numbers.append(int(segment_digits, hex_base))
 
-    return np.array(trial_numbers), np.array(stimulus_numbers), np.array(segment_numbers), np.array(trial_times)
+    return trial_numbers, stimulus_numbers, segment_numbers, trial_times
