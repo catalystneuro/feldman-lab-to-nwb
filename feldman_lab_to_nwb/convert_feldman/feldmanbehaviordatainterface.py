@@ -7,7 +7,7 @@ import numpy as np
 
 from ndx_events import AnnotatedEventsTable
 from nwb_conversion_tools.basedatainterface import BaseDataInterface
-from nwb_conversion_tools.conversion_tools import get_module
+from nwb_conversion_tools.utils.conversion_tools import get_module
 from pynwb import NWBFile
 from spikeextractors import SpikeGLXRecordingExtractor
 
