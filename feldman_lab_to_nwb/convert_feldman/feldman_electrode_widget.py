@@ -58,16 +58,16 @@ class ElectrodePositionSelector(widgets.VBox):
         nwbfile = electrodes.get_ancestor("NWBFile")
         unit_ids = nwbfile.units.id.data[:]
 
-        unit_response = calculate_all_responses(
+        responses = calculate_all_responses(
             units=nwbfile.units,
             trials=nwbfile.trials,
             pre_alignment_window=pre_alignment_window,
             post_alignment_window=post_alignment_window,
             event_name=event_name
         )
-        valid_unit_response = unit_response[~np.isnan(unit_response)]
+        valid_unit_responses = responses[~np.isnan(responses)]
         channel_response = np.array([np.nan] * n_channels)
-        channel_response[unit_ids] = unit_response
+        channel_response[unit_ids] = responses
 
         self.fig = go.FigureWidget(
             [
@@ -81,8 +81,8 @@ class ElectrodePositionSelector(widgets.VBox):
                     ],
                     marker=dict(
                         colorbar=dict(title="Responsitivity"),
-                        cmax=max(valid_unit_response),
-                        cmin=min(valid_unit_response),
+                        cmax=max(valid_unit_responses),
+                        cmin=min(valid_unit_responses),
                         color=channel_response,
                         colorscale="Viridis"
                     ),
@@ -155,7 +155,7 @@ class ElectrodePositionSelector(widgets.VBox):
         n_channels = len(self.scatter.marker.size)
 
         nwbfile = electrodes.get_ancestor("NWBFile")
-        response, _ = calculate_all_responses(
+        responses = calculate_all_responses(
             units=nwbfile.units,
             trials=nwbfile.trials,
             pre_alignment_window=pre_alignment_window,
@@ -163,14 +163,14 @@ class ElectrodePositionSelector(widgets.VBox):
             event_name=event_name
         )
         channel_response = np.array([np.nan] * n_channels)
-        channel_response[unit_ids] = response
+        channel_response[unit_ids] = responses
 
-        self.scatter.marker.cmax = max(response[~np.isnan(response)])
-        self.scatter.marker.cmin = min(response[~np.isnan(response)])
+        self.scatter.marker.cmax = max(responses[~np.isnan(responses)])
+        self.scatter.marker.cmin = min(responses[~np.isnan(responses)])
         self.scatter.marker.color = channel_response
 
         self.scatter.text = [
-            f"Channel ID: {channel_id}, Responsitivity: {round(response, 2)}"
+            f"Channel ID: {channel_id} <br> Responsitivity: {round(response, 2)}"
             for channel_id, response in zip(electrodes.id.data[:], channel_response)
         ]
 
@@ -217,10 +217,7 @@ class PSTHWithElectrodeSelector(widgets.HBox):
 
         self.children = [
             self.psth_widget,
-            widgets.VBox([
-                self.electrode_position_selector,
-                self.responsitivity_evoked_offset
-            ])
+            self.electrode_position_selector
         ]
         self.psth_widget.unit_controller.observe(self.handle_unit_controller, "value")
         self.psth_widget.before_ft.observe(self.handle_response, "value")
@@ -233,12 +230,9 @@ class PSTHWithElectrodeSelector(widgets.HBox):
     def handle_response(self, change):
         self.electrode_position_selector.update_response(
             electrodes=self.electrodes,
-            responsitivity_params=dict(
-                pre_alignment_window=[0, self.psth_widget.before_ft.value],
-                evoked_window=[0, self.psth_widget.after_ft.value],
-                event_name=self.psth_widget.trial_event_controller.value,
-                cat=self.psth_widget.gas.children[0].value
-            )
+            pre_alignment_window=[0, self.psth_widget.before_ft.value],
+            post_alignment_window=[0, self.psth_widget.after_ft.value],
+            event_name=self.psth_widget.trial_event_controller.value,
         )
 
 
