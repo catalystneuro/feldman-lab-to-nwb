@@ -10,7 +10,7 @@ from feldman_lab_to_nwb import FeldmanNWBConverter
 base_path = Path("E:/Feldman")
 
 # Name the NWBFile and point to the desired save path
-nwbfile_path = base_path / "LR_210209_g0_full_sorted_testing_with_first_sync_attempt_behavior.nwb"
+nwbfile_path = base_path / "LR_210209_g0_full_sorted_testing_with_second_sync_attempt_behavior.nwb"
 
 # Point to the various files for the conversion
 experiment_folder = base_path / "Neuropixels_Feldman" / "210209"
@@ -39,16 +39,17 @@ subject_info = dict(
 
 # Set some global conversion options here
 stub_test = True
+overwrite = True  # 'True' replaces the file if it exists, 'False' appends it with the new information
 
 # Run the conversion
 source_data = dict(
-    SpikeGLXRecording=dict(file_path=str(raw_data_file)),
-    SpikeGLXLFP=dict(file_path=str(lfp_data_file)),
+    # SpikeGLXRecording=dict(file_path=str(raw_data_file)),
+    # SpikeGLXLFP=dict(file_path=str(lfp_data_file)),
     Behavior=dict(folder_path=str(behavior_folder_path))
 )
 conversion_options = dict(
-    SpikeGLXRecording=dict(stub_test=stub_test),
-    SpikeGLXLFP=dict(stub_test=stub_test),
+    # SpikeGLXRecording=dict(stub_test=stub_test),
+    # SpikeGLXLFP=dict(stub_test=stub_test),
     Behavior=dict(nidq_synch_file=nidq_synch_file)
 )
 converter = FeldmanNWBConverter(source_data=source_data)
@@ -59,5 +60,5 @@ converter.run_conversion(
     nwbfile_path=str(nwbfile_path),
     metadata=metadata,
     conversion_options=conversion_options,
-    overwrite=False
+    overwrite=overwrite
 )

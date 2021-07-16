@@ -24,10 +24,6 @@ def add_trial_columns(
     existing_trial_columns = []
     if nwbfile.trials is not None:
         existing_trial_columns = [x.name for x in nwbfile.trials.columns]
-        # exclude_columns = list(exclude_columns)
-        # inv_trial_column_names = {v: k for k, v in trial_csv_column_names.items()}
-        # for column in nwbfile.trials.columns:
-        #     exclude_columns.append(inv_trial_column_names.get(column.name, None))
     valid_trial_csv_columns = set(trial_csv_column_names) - set(existing_trial_columns) - set(exclude_columns)
     for csv_column_name in valid_trial_csv_columns:
         nwbfile.add_trial_column(
@@ -145,7 +141,7 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
         trial_csv_column_descriptions = dict(
             StimNum="The identifier value for stimulus type.",
             StimLayout=(
-                "The index of the simulus layout. 1=Std, 2=Trains, 3=IL, 4=Trains+IL, 5=RFMap, 6=2WC, 7=MWS, 8=MWD"
+                "The index of the stimulus layout. 1=Std, 2=Trains, 3=IL, 4=Trains+IL, 5=RFMap, 6=2WC, 7=MWS, 8=MWD"
             ),
             StimOnsetTime="The time the stimulus was presented.",
             StimOrder="",
@@ -175,7 +171,7 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
             stimulus_gngs="",
             stimulus_shapes="",
             stimulus_durations="Duration of the stimulus element in seconds.",
-            stimulus_probabilities="Probability that the stimulus was presented - 0 if deterministic.",
+            stimulus_probabilities="Probability that the stimulus was presented; 0 if deterministic.",
             stimulus_piezo_labels="Manually assigned labels to each stimulus element."
         )
         # last_end_time = 0  # shift value for later segments
