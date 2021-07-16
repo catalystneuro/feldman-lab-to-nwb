@@ -6,7 +6,9 @@ import re
 import numpy as np
 from typing import Dict, Iterable
 
+from ndx_events import AnnotatedEventsTable
 from nwb_conversion_tools.basedatainterface import BaseDataInterface
+from nwb_conversion_tools.conversion_tools import get_module
 from pynwb import NWBFile
 from spikeextractors import SpikeGLXRecordingExtractor
 
@@ -92,9 +94,9 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
     @classmethod
     def get_source_schema(cls):
         return dict(
-            required=["folder_path"],
+            required=['folder_path'],
             properties=dict(
-                folder_path=dict(type="string")
+                folder_path=dict(type='string')
             )
         )
 
