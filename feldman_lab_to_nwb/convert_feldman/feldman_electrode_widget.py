@@ -1,13 +1,16 @@
+"""Authors: Cody Baker."""
 import numpy as np
+from typing import Iterable
 
-from ipywidgets import widgets, Layout
+from ipywidgets import widgets
+from pynwb.file import ElectrodeTable
 from pynwb.misc import Units
 from nwbwidgets import default_neurodata_vis_spec
 from nwbwidgets.misc import PSTHWidget
 from nwbwidgets import base
 import plotly.graph_objects as go
 
-from .feldman_electrode_widget_utils import calculate_response
+from .feldman_electrode_widget_utils import calculate_all_responses
 
 ELECTRODE_COLOR = "#000000"
 
@@ -17,29 +20,35 @@ SELECTED_SIZE = 20
 
 
 class ElectrodePositionSelector(widgets.VBox):
+    """Custom widget object for selecting channel activity from a visual grid."""
 
     def update_point(self, trace, points, selector):
         pass
 
-    def __init__(self, electrodes, responsitivity_params):
+    def __init__(
+        self,
+        electrodes: ElectrodeTable,
+        pre_alignment_window: Iterable[float],
+        post_alignment_window: Iterable[float],
+        event_name: str
+    ):
         """
         Visualize the electrode grid with on-click selection of channels in one-to-one relationship to units.
 
         Parameters
         ----------
-        electrodes
-            Electrodes table of an NWBFile.
-        psth_info
-            Dictionary of information specifying the parameters for computing responsitivity of each unit.
-            At a minimum, expected to be of the form:
-
-                responsitivity_params=dict(
-                    pre_alignment_window=[pre_alignment_lower_bound, pre_alignment_upper_bound],
-                    evoked_window=[evoked_window_lower_bound, evoked_window_upper_bound],
-                    event_name=name_of_trials_table_column_for_alignment
-                ),
-
-            For more information about these keyword arguments, see .feldman_electrode_widget_utils.calculate_response?
+        electrodes: ElectrodeTable
+            Electrodes Table of an NWBFile.
+        pre_alignment_window : Iterable[float]
+            Array-like of the form [start, end] flipped with respect to the value of the alignment time,
+            in units seconds. E.g., pre_alignment_window = [0.1, 0.5] with alignment_times = [1.2, 2.3, 3.4]
+            will calculate spiking activity over the windows [[0.7, 1.1], [1.8, 2.2], [2.9, 3.3]] respectively.
+        post_alignment_window : Iterable[float]
+            Array-like of the form [start, end] with respect to the value of the alignment time, in units seconds.
+            E.g., post_alignment_window = [0.1, 0.5] with alignment_times = [1.2, 2.3, 3.4]
+            will calculate spiking activity over the windows [[1.3, 1.7], [2.4, 2.8], [3.5, 3.9]] respectively.
+        event_name : str
+            Name of event from trials table to align to.
         """
         super().__init__()
         x = electrodes["rel_x"].data[:]
@@ -49,7 +58,13 @@ class ElectrodePositionSelector(widgets.VBox):
         nwbfile = electrodes.get_ancestor("NWBFile")
         unit_ids = nwbfile.units.id.data[:]
 
-        unit_response, _ = calculate_response(units=nwbfile.units, trials=nwbfile.trials, **responsitivity_params)
+        unit_response = calculate_all_responses(
+            units=nwbfile.units,
+            trials=nwbfile.trials,
+            pre_alignment_window=pre_alignment_window,
+            post_alignment_window=post_alignment_window,
+            event_name=event_name
+        )
         valid_unit_response = unit_response[~np.isnan(unit_response)]
         channel_response = np.array([np.nan] * n_channels)
         channel_response[unit_ids] = unit_response
@@ -111,31 +126,42 @@ class ElectrodePositionSelector(widgets.VBox):
         with self.fig.batch_update():
             self.scatter.marker.size = s
 
-    def update_response(self, electrodes, responsitivity_params):
+    def update_response(
+        self,
+        electrodes: ElectrodeTable,
+        pre_alignment_window: Iterable[float],
+        post_alignment_window: Iterable[float],
+        event_name: str
+    ):
         """
         Visualize the electrode grid with on-click selection of channels in one-to-one relationship to units.
 
         Parameters
         ----------
-        electrodes
-            Electrodes table of an NWBFile.
-        psth_info
-            Dictionary of information specifying the parameters for computing responsitivity of each unit.
-            At a minimum, expected to be of the form:
-
-                responsitivity_params=dict(
-                    pre_alignment_window=[pre_alignment_lower_bound, pre_alignment_upper_bound],
-                    evoked_window=[evoked_window_lower_bound, evoked_window_upper_bound],
-                    event_name=name_of_trials_table_column_for_alignment
-                ),
-
-            For more information about these keyword arguments, see .feldman_electrode_widget_utils.calculate_response?
+        electrodes: ElectrodeTable
+            Electrodes Table of an NWBFile.
+        pre_alignment_window : Iterable[float]
+            Array-like of the form [start, end] flipped with respect to the value of the alignment time,
+            in units seconds. E.g., pre_alignment_window = [0.1, 0.5] with alignment_times = [1.2, 2.3, 3.4]
+            will calculate spiking activity over the windows [[0.7, 1.1], [1.8, 2.2], [2.9, 3.3]] respectively.
+        post_alignment_window : Iterable[float]
+            Array-like of the form [start, end] with respect to the value of the alignment time, in units seconds.
+            E.g., post_alignment_window = [0.1, 0.5] with alignment_times = [1.2, 2.3, 3.4]
+            will calculate spiking activity over the windows [[1.3, 1.7], [2.4, 2.8], [3.5, 3.9]] respectively.
+        event_name : str
+            Name of event from trials table to align to.
         """
         unit_ids = electrodes.get_ancestor("NWBFile").units.id.data[:]
         n_channels = len(self.scatter.marker.size)
 
         nwbfile = electrodes.get_ancestor("NWBFile")
-        response, _ = calculate_response(units=nwbfile.units, trials=nwbfile.trials, **responsitivity_params)
+        response, _ = calculate_all_responses(
+            units=nwbfile.units,
+            trials=nwbfile.trials,
+            pre_alignment_window=pre_alignment_window,
+            post_alignment_window=post_alignment_window,
+            event_name=event_name
+        )
         channel_response = np.array([np.nan] * n_channels)
         channel_response[unit_ids] = response
 
@@ -150,6 +176,7 @@ class ElectrodePositionSelector(widgets.VBox):
 
 
 class PSTHWithElectrodeSelector(widgets.HBox):
+    """Custom widget for combining PSTH tab with the electrode grid selector, allowing communication between the two."""
 
     def update_point(self, trace, points, selector):
         n_channels = len(self.electrode_position_selector.scatter.marker.size)
@@ -167,28 +194,24 @@ class PSTHWithElectrodeSelector(widgets.HBox):
             np.array(self.electrode_position_selector.scatter.marker.size)[is_unit] == SELECTED_SIZE
         )[0][0]
 
-    def __init__(self, units):
+    def __init__(self, units: Units):
+        """
+        Visualize PSTH with the ability to select electrodes from clicking within the grid.
+
+        Parameters
+        ----------
+        units : Units
+            Units Table of an NWBFile.
+        """
         super().__init__()
         self.electrodes = units.get_ancestor("NWBFile").electrodes
 
         self.psth_widget = PSTHWidget(units)
-        self.responsitivity_evoked_offset = widgets.FloatText(
-            0.0,
-            min=0,
-            description="offset",
-            layout=Layout(width="200px")
-        )
         self.electrode_position_selector = ElectrodePositionSelector(
             self.electrodes,
-            responsitivity_params=dict(
-                pre_alignment_window=[0, self.psth_widget.before_ft.value],
-                evoked_window=[
-                    self.responsitivity_evoked_offset.value,
-                    self.psth_widget.after_ft.value
-                ],
-                event_name=self.psth_widget.trial_event_controller.value,
-                cat=self.psth_widget.gas.children[0].value
-            ),
+            pre_alignment_window=[0, self.psth_widget.before_ft.value],
+            post_alignment_window=[0, self.psth_widget.after_ft.value],
+            event_name=self.psth_widget.trial_event_controller.value
         )
         self.electrode_position_selector.scatter.on_click(self.update_point)
 
@@ -203,7 +226,6 @@ class PSTHWithElectrodeSelector(widgets.HBox):
         self.psth_widget.before_ft.observe(self.handle_response, "value")
         self.psth_widget.after_ft.observe(self.handle_response, "value")
         self.psth_widget.trial_event_controller.observe(self.handle_response, "value")
-        self.psth_widget.gas.children[0].observe(self.handle_response, "value")
 
     def handle_unit_controller(self, change):
         self.electrode_position_selector.update_selected(electrodes=self.electrodes, index=change["owner"].index)
@@ -213,10 +235,7 @@ class PSTHWithElectrodeSelector(widgets.HBox):
             electrodes=self.electrodes,
             responsitivity_params=dict(
                 pre_alignment_window=[0, self.psth_widget.before_ft.value],
-                evoked_window=[
-                    self.responsitivity_evoked_offset.value,
-                    self.psth_widget.after_ft.value
-                ],
+                evoked_window=[0, self.psth_widget.after_ft.value],
                 event_name=self.psth_widget.trial_event_controller.value,
                 cat=self.psth_widget.gas.children[0].value
             )
