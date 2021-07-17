@@ -3,7 +3,7 @@ from pathlib import Path
 
 from nwb_conversion_tools import NWBConverter, SpikeGLXRecordingInterface, SpikeGLXLFPInterface
 
-from .feldmanbehaviordatainterface import FeldmanBehaviorDataInterface
+# from .feldmanbehaviordatainterface import FeldmanBehaviorDataInterface
 
 
 class FeldmanNWBConverter(NWBConverter):
@@ -12,7 +12,7 @@ class FeldmanNWBConverter(NWBConverter):
     data_interface_classes = dict(
         SpikeGLXRecording=SpikeGLXRecordingInterface,
         SpikeGLXLFP=SpikeGLXLFPInterface,
-        Behavior=FeldmanBehaviorDataInterface
+        # Behavior=FeldmanBehaviorDataInterface
     )
 
     def get_metadata(self):
