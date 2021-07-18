@@ -89,7 +89,11 @@ def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_ch
         # First 4 digits (10ms each) are the trial number
         for i in range(4):
             median_value = np.median(tr_events[i_start + 10:i_start + tenms_interval - 10])
-            digit = int(np.floor(median_value * (hex_base - 1) / voltage_range))
+            digit = (median_value * (hex_base - 1) / voltage_range)
+            if digit > 0:
+                digit = int(np.floor(digit))
+            else:
+                digit = int(np.ceil(digit))
             trial_digits += hex_dict[digit]
             i_start += tenms_interval
         trial_numbers.append(int(trial_digits, hex_base))
@@ -97,7 +101,11 @@ def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_ch
         # Second 4 digits (10ms each) are the stimulus number
         for i in range(4):
             median_value = np.median(tr_events[i_start + 10:i_start + tenms_interval - 10])
-            digit = int(np.floor(median_value * (hex_base - 1) / voltage_range))
+            digit = (median_value * (hex_base - 1) / voltage_range)
+            if digit > 0:
+                digit = int(np.floor(digit))
+            else:
+                digit = int(np.ceil(digit))
             stimulus_digits += hex_dict[digit]
             i_start += tenms_interval
         stimulus_numbers.append(int(stimulus_digits, hex_base))
@@ -105,7 +113,11 @@ def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_ch
         # Third 4 digits (10ms each) are the segment number
         for i in range(4):
             median_value = np.median(tr_events[i_start + 10:i_start + tenms_interval - 10])
-            digit = int(np.floor(median_value * (hex_base - 1) / voltage_range))
+            digit = (median_value * (hex_base - 1) / voltage_range)
+            if digit > 0:
+                digit = int(np.floor(digit))
+            else:
+                digit = int(np.ceil(digit))
             segment_digits += hex_dict[digit]
             i_start += tenms_interval
         segment_numbers.append(int(segment_digits, hex_base))
