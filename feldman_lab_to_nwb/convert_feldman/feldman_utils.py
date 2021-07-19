@@ -48,6 +48,8 @@ def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_ch
     # get trial and event traces
     tr_trial = recording_nidq.get_traces(channel_ids=[trial_ongoing_channel])[0]
     tr_events = recording_nidq.get_traces(channel_ids=[event_channel])[0]
+    scaled_tr_events = tr_events * (hex_base - 1) / voltage_range
+    scaled_tr_events = (scaled_tr_events - min(scaled_tr_events)) / np.ptp(scaled_tr_events) * (hex_base - 1)
 
     # discretize trial ongoing signal
     tr_trial_bin = np.zeros(tr_trial.shape, dtype=int)
@@ -88,36 +90,24 @@ def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_ch
 
         # First 4 digits (10ms each) are the trial number
         for i in range(4):
-            median_value = np.median(tr_events[i_start + 10:i_start + tenms_interval - 10])
-            digit = (median_value * (hex_base - 1) / voltage_range)
-            if digit > 0:
-                digit = int(np.floor(digit))
-            else:
-                digit = int(np.ceil(digit))
+            digit = np.median(scaled_tr_events[i_start + 10:i_start + tenms_interval - 10])
+            digit = int(round(digit))
             trial_digits += hex_dict[digit]
             i_start += tenms_interval
         trial_numbers.append(int(trial_digits, hex_base))
 
         # Second 4 digits (10ms each) are the stimulus number
         for i in range(4):
-            median_value = np.median(tr_events[i_start + 10:i_start + tenms_interval - 10])
-            digit = (median_value * (hex_base - 1) / voltage_range)
-            if digit > 0:
-                digit = int(np.floor(digit))
-            else:
-                digit = int(np.ceil(digit))
+            digit = np.median(scaled_tr_events[i_start + 10:i_start + tenms_interval - 10])
+            digit = int(round(digit))
             stimulus_digits += hex_dict[digit]
             i_start += tenms_interval
         stimulus_numbers.append(int(stimulus_digits, hex_base))
 
         # Third 4 digits (10ms each) are the segment number
         for i in range(4):
-            median_value = np.median(tr_events[i_start + 10:i_start + tenms_interval - 10])
-            digit = (median_value * (hex_base - 1) / voltage_range)
-            if digit > 0:
-                digit = int(np.floor(digit))
-            else:
-                digit = int(np.ceil(digit))
+            digit = np.median(scaled_tr_events[i_start + 10:i_start + tenms_interval - 10])
+            digit = int(round(digit))
             segment_digits += hex_dict[digit]
             i_start += tenms_interval
         segment_numbers.append(int(segment_digits, hex_base))
