@@ -1,8 +1,12 @@
 """Authors: Alessio Buccino and Cody Baker."""
 from tqdm import tqdm
 import numpy as np
+from pathlib import Path
+from typing import Union
 
 from spikeextractors import SpikeGLXRecordingExtractor
+
+PathType = Union[str, Path]
 
 
 def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_channel: int = 3, event_channel: int = 4):
@@ -99,3 +103,8 @@ def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_ch
         segment_numbers.append(int(segment_digits, hex_base))
 
     return np.array(trial_numbers), np.array(stimulus_numbers), np.array(segment_numbers), np.array(trial_times)
+
+
+def convert_nwb_to_spikes_mat(nwbfile_path: PathType):
+    pass
+
