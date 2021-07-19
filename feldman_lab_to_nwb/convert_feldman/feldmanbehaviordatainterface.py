@@ -8,7 +8,7 @@ from typing import Dict, Iterable
 
 from ndx_events import AnnotatedEventsTable
 from nwb_conversion_tools.basedatainterface import BaseDataInterface
-from nwb_conversion_tools.conversion_tools import get_module
+from nwb_conversion_tools.utils.conversion_tools import get_module
 from pynwb import NWBFile
 from spikeextractors import SpikeGLXRecordingExtractor
 
@@ -107,7 +107,14 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
         metadata = dict(NWBFile=dict(session_id=header_data["ExptName"].values[0]))
         return metadata
 
-    def run_conversion(self, nwbfile: NWBFile, metadata: dict, nidq_synch_file: str):
+    def run_conversion(
+        self,
+        nwbfile: NWBFile,
+        metadata: dict,
+        nidq_synch_file: str,
+        trial_ongoing_channel: int,
+        event_channel: int
+    ):
         """
         Primary conversion function for the custom Feldman lab behavioral interface.
 
@@ -116,7 +123,9 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
         folder_path = Path(self.source_data["folder_path"])
 
         (trial_numbers, stimulus_numbers, segment_numbers_from_nidq, trial_times_from_nidq) = get_trials_info(
-            recording_nidq=SpikeGLXRecordingExtractor(file_path=nidq_synch_file)
+            recording_nidq=SpikeGLXRecordingExtractor(file_path=nidq_synch_file),
+            trial_ongoing_channel=trial_ongoing_channel,
+            event_channel=event_channel
         )
         header_segments = [x for x in folder_path.iterdir() if "header" in x.name]
         assert len(header_segments) == len(set(segment_numbers_from_nidq)), \
