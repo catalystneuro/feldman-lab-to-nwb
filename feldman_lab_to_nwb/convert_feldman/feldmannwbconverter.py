@@ -1,8 +1,6 @@
 """Authors: Cody Baker."""
 from pathlib import Path
-from typing import Optional
 
-from pynwb import NWBFile
 from spikeextractors import SpikeGLXRecordingExtractor
 from nwb_conversion_tools import NWBConverter, SpikeGLXRecordingInterface, SpikeGLXLFPInterface
 

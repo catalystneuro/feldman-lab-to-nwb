@@ -187,7 +187,6 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
             stimulus_column_description=stimulus_column_description,
             exclude_columns=exclude_columns
         )
-        last_end_time = 0  # shift value for later segments
         for header_segment in header_segments:
             header_data = read_csv(header_segment, header=None, sep="\t", index_col=0).T
             trial_data = read_csv(str(header_segment).replace("header", "trials"), header=0, sep="\t")
@@ -201,10 +200,18 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
                     trial_data.loc[:, csv_column] = (
                         (
                             np.array(trial_data.loc[:, csv_column]) - trial_segment_csv_start_times
-                        ) / 1e3 + last_end_time
+                        ) / 1e3 + trial_times_from_nidq[trial_data.loc[:, "TrNum"], 0]
                     )
             trial_data.loc[:, "Laser"] = trial_data.loc[:, "Laser"].astype(bool)
-            stimulus_data.loc[:, "Time_ms"] = stimulus_data.loc[:, "Time_ms"] / 1e3 + last_end_time
+            last_trial = 0
+            m = 0
+            for j, trial, offset in enumerate(zip(stimulus_data.loc[:, "Trial"], stimulus_data.loc[:, "Time_ms"])):
+                if trial == last_trial:
+                    m += 1
+                else:
+                    last_trial = trial
+                    m = 1
+                stimulus_data.loc[j, "Time_ms"] = trial_times_from_nidq[trial, 0] + offset / 1e3 * m
 
             add_trials(
                 nwbfile=nwbfile,
