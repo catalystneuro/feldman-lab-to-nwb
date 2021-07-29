@@ -205,7 +205,7 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
             trial_data.loc[:, "Laser"] = trial_data.loc[:, "Laser"].astype(bool)
             last_trial = 0
             m = 0
-            for j, trial, offset in enumerate(zip(stimulus_data.loc[:, "Trial"], stimulus_data.loc[:, "Time_ms"])):
+            for j, (trial, offset) in enumerate(zip(stimulus_data.loc[:, "Trial"], stimulus_data.loc[:, "Time_ms"])):
                 if trial == last_trial:
                     m += 1
                 else:
