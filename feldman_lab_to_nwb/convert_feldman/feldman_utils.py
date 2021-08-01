@@ -337,7 +337,7 @@ def convert_nwb_to_spikes_mat(
                 StimTime_Unwrapped=[y for x in nwbfile.trials.stimulus_times[()] for y in x]
             )
         )
-        header_info = json.load(nwbfile.session_description)["header_info"]
+        header_info = json.load(nwbfile.trials.description)  # Assumes this was made by the FeldmanBehaviorInterface
         n_trials = len(nwbfile.trials.id)
         for x, y in header_info.items():
             out_dict["attributes"]["stimuli"].update({x: [y] * n_trials})

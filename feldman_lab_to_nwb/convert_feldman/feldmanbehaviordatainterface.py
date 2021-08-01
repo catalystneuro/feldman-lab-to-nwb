@@ -6,6 +6,7 @@ from typing import Dict, Iterable
 
 from nwb_conversion_tools.basedatainterface import BaseDataInterface
 from pynwb import NWBFile
+from pynwb.file import TrialTable
 from spikeextractors import SpikeGLXRecordingExtractor
 
 from .feldman_utils import get_trials_info, clip_trials
@@ -127,6 +128,11 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
             trial_times=trial_times_from_nidq
         )
         header_segments = [x for x in folder_path.iterdir() if "header" in x.name]
+        first_header = read_csv(header_segments[0], header=None, sep="\t", index_col=0).T
+        nwbfile.trials = TrialTable(
+            name="trials",
+            description=str({x: y.values[0] for x, y in first_header.items()}).replace("'", "\"")
+        )
 
         exclude_columns = set(["TrNum", "Segment", "ISS0Time", "Arm0Time"])
         trial_csv_column_names = dict(
