@@ -4,6 +4,7 @@ import numpy as np
 from pathlib import Path
 from typing import Union
 from scipy.io import savemat
+import json
 
 from pynwb import NWBHDF5IO
 
@@ -117,8 +118,6 @@ def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_ch
 def convert_nwb_to_spikes_mat(
     nwbfile_path: PathType,
     matfile_path: PathType,
-    filter_parameters: dict = dict(),
-    sorter_parameters: dict = dict(),
     n_waveform_samples: int = 37,
     n_waveform_channels: int = 4
 ):
@@ -151,9 +150,7 @@ def convert_nwb_to_spikes_mat(
         Prioritizes based on order of nearest distance to the maximum channel.
         The default is 4.
     """
-    out_dict = dict(spikes=dict())
-    trial_struct_name = Path(matfile_path).stem
-    out_dict.update({trial_struct_name: dict()})  # convention is for MATLAB struct to mimic name of file
+    out_dict = dict(spikes=dict(), attributes=dict())
 
     with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
         nwbfile = io.read()
@@ -175,7 +172,28 @@ def convert_nwb_to_spikes_mat(
             spike_trials[j] = trial + 1
             spike_times_in_trials[j] = spike_time - trials["start_time"][trial]
 
-        sorter_parameters.update(Fs=nwbfile.units.sampling_frequency)
+        sampling_frequency = nwbfile.units.sampling_frequency
+        parameters = json.loads(nwbfile.units.description)  # Assumes this was made by the Feldman processing pipeline
+        filter_parameters = parameters["filter_parameters"]
+        sorter_parameters = parameters["sorter_parameters"]
+        sorter_parameters.update(Fs=sampling_frequency)
+
+        waveforms = []
+        channel_locations = np.array(
+            [[x, y] for x, y in zip(nwbfile.electrodes.rel_x.data, nwbfile.electrodes.rel_y.data)]
+        )
+        channel_ids = np.array(nwbfile.electrodes.id)
+        for spike_index in units.spike_times_indexes:
+            spike_frame = round(spike_time/sampling_frequency)
+            max_channel = nwbfile.units.max_channel[spike_index]
+            channel_distances = np.linalg.norm(channel_locations - channel_locations[max_channel], axis=1)
+            closest_channels = channel_ids[np.argsort(channel_distances)]
+            waveforms.append(
+                nwbfile.acquisition[list(nwbfile.acquisition)[0]].data[
+                    spike_frame:spike_frame+n_waveform_samples,
+                    closest_channels[:n_waveform_channels]
+                ]
+            )
 
         out_dict["spikes"].update(
             assigns=units.spike_times_indexes,
@@ -187,6 +205,104 @@ def convert_nwb_to_spikes_mat(
             spiketimes=spike_times_in_trials,
             trials=spike_trials,
             unwrapped_times=units.spike_times[()] - trials["start_time"][0],
-            waveforms=[]  # TODO
+            waveforms=waveforms
+        )
+
+        device_name = list(nwbfile.devices)[0]
+        unique_piezo = list(set(nwbfile.trials.stimulus_elements[()]))
+        piezo_order = np.argsort(unique_piezo)
+        piezo_numbers = unique_piezo[piezo_order]
+        out_dict["attributes"].update(
+            SweepOnsetSorting=dict(),
+            RewardOnset=nwbfile.trials.reward_start_time,
+            GNG=nwbfile.trials.stimulus_gngs,
+            TrLaser=nwbfile.trials.laser_is_on,
+            sweep_table=dict(
+                TrNum=1,
+                Segment=1,
+                ISS0Time=1,
+                Arm0Time=1,
+                TrStartTime=1,
+                TrEndTime=1,
+                RWStartTime=1,
+                RWEndTime=1,
+                StimOnsetTime=1,
+                StimNum=1,
+                Tone=1,
+                TrType=1,
+                LickInWindow=1,
+                TrOutcome=1,
+                RewardTime=1,
+                NLicks=1,
+                CumNRewards=1,
+                CumVol=1,
+                StimLayout=1,
+                StimOrder=1,
+                Laser=1,
+                SegmentNum=1,
+                Iss0time=1,  # duplicate
+                FirstTrialNum=1,
+                LastTrialNum=1,
+                Nstimuli=1,
+                ArduinoMode=1,
+                ITImean=1,
+                ITIrange=1,
+                MaxLicksLimit=1,
+                RewardCalib_b=1,
+                RewardCalib_m=1,
+                UseGlobalGNG=1,
+                A=1,
+                B=1,
+                # ...=1,
+                Z=1,
+                Nelements=1,
+                PiezoLabel0=1,
+                # ...=1,
+                PieazoLabel18=1,
+            ),
+            experiment=dict(
+                Index=1,
+                Animal_ID=nwbfile.subject.subject_id,
+                Recording_Date=nwbfile.session_start_time.strftime("%y%m%d"),
+                Genotype=nwbfile.subject.genotype,
+                Age=nwbfile.subject.age,
+                Rec_Num=1,
+                Whiskers=list(set(nwbfile.trials.stimulus_piezo_labels))[piezo_order],
+                Piezo_Numbers=piezo_numbers,
+                Piezo_distance=2500,
+                Weight_Percent=100,
+                Lick_Source="",  # igor or adrian
+                Tip_Depth=600,
+                Electrode=device_name,
+                Electrode_Serial_Num=nwbfile.devices[device_name].description,
+                Bad_Channels=[],
+                Channel_Map=[
+                    nwbfile.extracellular_ephys.id[nwbfile.extracellular_ephys.electrode.group == group]
+                    for group in nwbfile.extracellular_ephys.electrode.group
+                ]
+            ),
+            stimuli=dict(
+                Trial=[x for x, y in zip(nwbfile.trials.id, nwbfile.trials.stimulus_elements) for _ in y],
+                Posn=[y for x in nwbfile.trials.stimulus_ordinalities for y in x],
+                StimElem=nwbfile.trials.stimulus_number,
+                Time_ms=[z - x for x, y in zip(nwbfile.trials.start_time, nwbfile.trials.stimulus_elements) for z in y],
+                Ampl=[1] * len(nwbfile.trials.stimulus_number),
+                ElemPiezo=[y for x in nwbfile.trials.stimulus_elements for y in x],
+                ElemAmp=[y for x in nwbfile.trials.stimulus_amplitudes for y in x],
+                ElemProb=[y for x in nwbfile.trials.stimulus_probabilities for y in x],
+                ElemDur=[y for x in nwbfile.trials.stimulus_durations for y in x],
+                ElemShape=[y for x in nwbfile.trials.stimulus_shapes for y in x],
+                ElemRise=[y for x in nwbfile.trials.stimulus_rises for y in x],
+                ElemGNG=[y for x in nwbfile.trials.stimulus_gngs for y in x],
+                MW_Tone=nwbfile.trials.tone,
+                MW_Laser=nwbfile.trials.laser_is_on,
+                WhiskerID=nwbfile.trials.stimulus_piezo_labels,
+                StimTime_Unwrapped=[y for x in nwbfile.trials.stimulus_times for y in x]
+            )
+        )
+        out_dict["stimuli"].update(
+            MW_RelAmp=out_dict["stimuli"]["ElemAmp"],
+            MW_Prob=out_dict["stimuli"]["ElemProb"],
+            MW_GNG=out_dict["stimuli"]["ElemGNG"]
         )
         savemat(file_name=str(matfile_path), mdict=out_dict)

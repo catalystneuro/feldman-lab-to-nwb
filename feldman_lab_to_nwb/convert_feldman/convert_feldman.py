@@ -48,8 +48,8 @@ overwrite = True  # 'True' replaces the file if it exists, 'False' appends it wi
 
 # Run the conversion
 source_data = dict(
-    # SpikeGLXRecording=dict(file_path=str(raw_data_file)),
-    # SpikeGLXLFP=dict(file_path=str(lfp_data_file)),
+    SpikeGLXRecording=dict(file_path=str(raw_data_file)),
+    SpikeGLXLFP=dict(file_path=str(lfp_data_file)),
     Behavior=dict(folder_path=str(behavior_folder_path))
 )
 conversion_options = dict(

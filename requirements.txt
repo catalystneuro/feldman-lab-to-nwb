@@ -3,6 +3,6 @@ jupyter==1.0.0
 pynwb==1.4.0
 h5py==2.10.0
 isodate==0.6.0
-git+https://github.com/catalystneuro/nwb-conversion-tools
-git+https://github.com/NeurodataWithoutBorders/nwb-jupyter-widgets
+nwb-conversion-tools @ git+https://github.com/catalystneuro/nwb-conversion-tools.git@e8ff6dc7d74235a5c909e071ec3cc2005b694ea5
+nwbwidgets @ git+https://github.com/NeurodataWithoutBorders/nwb-jupyter-widgets@6b2dd8d5a811e97c3c0ce2c40c905ff694d32ecc
 ndx_events==0.2.0
