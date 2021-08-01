@@ -1,5 +1,6 @@
 """Authors: Cody Baker."""
 from pathlib import Path
+from pandas import read_csv
 
 from spikeextractors import SpikeGLXRecordingExtractor
 from nwb_conversion_tools import NWBConverter, SpikeGLXRecordingInterface, SpikeGLXLFPInterface
@@ -44,4 +45,15 @@ class FeldmanNWBConverter(NWBConverter):
         metadata["NWBFile"].update(institution="UC Berkeley", lab="Feldman")
         if "session_id" not in metadata["NWBFile"]:
             metadata["NWBFile"].update(session_id="_".join(next(behavior_folder_path.iterdir()).stem.split("_")[:3]))
+
+        header_segments = [x for x in behavior_folder_path.iterdir() if "header" in x.name]
+        first_header = read_csv(header_segments[0], header=None, sep="\t", index_col=0).T
+        metadata["NWBFile"].update(
+            session_description=str(
+                dict(
+                    text_description=metadata["NWBFile"]["session_description"],
+                    header_info={x: y.values[0] for x, y in first_header.items()}
+                )
+            ).replace("'", "\"")
+        )
         return metadata

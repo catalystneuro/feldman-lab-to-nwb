@@ -144,7 +144,9 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
             LickInWindow="licks_in_window",
             Laser="laser_is_on",
             CumVol="cumulative_volume",
-            CumNRewards="cumulative_number_of_rewards"
+            CumNRewards="cumulative_number_of_rewards",
+            ISS0Time="ISS0Time",
+            Arm0Time="Arm0Time"
         )
         trial_csv_column_descriptions = dict(
             StimNum="The identifier value for stimulus type.",
