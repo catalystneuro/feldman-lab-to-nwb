@@ -6,7 +6,7 @@ from spikeextractors import SpikeGLXRecordingExtractor
 from nwb_conversion_tools import NWBConverter, SpikeGLXRecordingInterface, SpikeGLXLFPInterface
 
 from .feldmanbehaviordatainterface import FeldmanBehaviorDataInterface
-from .feldman_utils import get_trials_info, clip_recording
+from .utils import get_trials_info, clip_recording
 
 
 class FeldmanNWBConverter(NWBConverter):
@@ -37,6 +37,9 @@ class FeldmanNWBConverter(NWBConverter):
                     trial_numbers=trial_numbers,
                     trial_times=trial_times,
                     recording=self.data_interface_objects[interface].recording_extractor
+                )
+                self.data_interface_objects[interface].recording_extractor.set_channel_gains = (
+                    self.data_interface_objects[interface].recording_extractor._parent_recording.get_channel_gains()
                 )
 
     def get_metadata(self):

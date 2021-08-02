@@ -6,10 +6,10 @@ from typing import Dict, Iterable
 
 from nwb_conversion_tools.basedatainterface import BaseDataInterface
 from pynwb import NWBFile
-from pynwb.file import TrialTable
+from pynwb.file import TimeIntervals
 from spikeextractors import SpikeGLXRecordingExtractor
 
-from .feldman_utils import get_trials_info, clip_trials
+from .utils import get_trials_info, clip_trials
 
 
 def add_trial_columns(
@@ -129,12 +129,12 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
         )
         header_segments = [x for x in folder_path.iterdir() if "header" in x.name]
         first_header = read_csv(header_segments[0], header=None, sep="\t", index_col=0).T
-        nwbfile.trials = TrialTable(
+        nwbfile.trials = TimeIntervals(
             name="trials",
             description=str({x: y.values[0] for x, y in first_header.items()}).replace("'", "\"")
         )
 
-        exclude_columns = set(["TrNum", "Segment", "ISS0Time", "Arm0Time"])
+        exclude_columns = set(["TrNum", "Segment"])
         trial_csv_column_names = dict(
             StimNum="stimulus_number",
             StimLayout="stimulus_layout",
@@ -171,7 +171,9 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
             LickInWindow="Number of licks in selected window.",
             Laser="Boolean indicating laser activity.",
             CumVol="Cumulative volume.",
-            CumNRewards="Cumulative number of rewards."
+            CumNRewards="Cumulative number of rewards.",
+            ISS0Time="Data needed for spikes.mat roundtrip.",
+            Arm0Time="Data needed for spikes.mat roundtrip."
         )
         stimulus_csv_column_names = dict(
             Time_ms="stimulus_times",

@@ -6,7 +6,7 @@ from nwb_conversion_tools import SpikeGLXRecordingInterface
 from pynwb import NWBFile
 from spikeextractors import NwbRecordingExtractor, SpikeGLXRecordingExtractor
 
-from .feldman_utils import get_trials_info
+from .utils import get_trials_info
 
 
 def infer_ap_filepath(nidq_file_path: str):
