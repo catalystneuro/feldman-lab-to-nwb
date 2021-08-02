@@ -6,9 +6,10 @@ from typing import Dict, Iterable
 
 from nwb_conversion_tools.basedatainterface import BaseDataInterface
 from pynwb import NWBFile
+from pynwb.file import TimeIntervals
 from spikeextractors import SpikeGLXRecordingExtractor
 
-from .feldman_utils import get_trials_info, clip_trials
+from .utils import get_trials_info, clip_trials
 
 
 def add_trial_columns(
@@ -56,6 +57,9 @@ def add_trials(
         stimulus_probabilities=np.array([int(header_data[f"ElemProb{x}"]) for x in range(n_elements)]),
         stimulus_piezo_labels=np.array([str(header_data[f"PiezoLabel{x}"].values[0]) for x in range(n_elements)])
     )
+
+    # Extra columns for each special header layout. Technically adding it all to the trials table is very inefficient.
+    # But necessary for the final mapping to the Spikes.mat
 
     for n, k in enumerate(range(int(header_data["FirstTrialNum"]), int(header_data["LastTrialNum"]))):
         trial_kwargs = dict(start_time=trial_times[k][0], stop_time=trial_times[k][1])
@@ -124,8 +128,13 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
             trial_times=trial_times_from_nidq
         )
         header_segments = [x for x in folder_path.iterdir() if "header" in x.name]
+        first_header = read_csv(header_segments[0], header=None, sep="\t", index_col=0).T
+        nwbfile.trials = TimeIntervals(
+            name="trials",
+            description=str({x: y.values[0] for x, y in first_header.items()}).replace("'", "\"")
+        )
 
-        exclude_columns = set(["TrNum", "Segment", "ISS0Time", "Arm0Time"])
+        exclude_columns = set(["TrNum", "Segment"])
         trial_csv_column_names = dict(
             StimNum="stimulus_number",
             StimLayout="stimulus_layout",
@@ -141,7 +150,9 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
             LickInWindow="licks_in_window",
             Laser="laser_is_on",
             CumVol="cumulative_volume",
-            CumNRewards="cumulative_number_of_rewards"
+            CumNRewards="cumulative_number_of_rewards",
+            ISS0Time="ISS0Time",
+            Arm0Time="Arm0Time"
         )
         trial_csv_column_descriptions = dict(
             StimNum="The identifier value for stimulus type.",
@@ -149,18 +160,20 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
                 "The index of the stimulus layout. 1=Std, 2=Trains, 3=IL, 4=Trains+IL, 5=RFMap, 6=2WC, 7=MWS, 8=MWD"
             ),
             StimOnsetTime="The time the stimulus was presented.",
-            StimOrder="",
-            Tone="",
+            StimOrder="Index of stimulus ordering.",
+            Tone="Index of the tone.",
             TrOutcome="The outcome index for each trial.",
             TrType="The type index for each trial.",
-            RewardTime="",
-            RWStartTime="",
-            RWEndTime="",
-            NLicks="",
-            LickInWindow="",
-            Laser="",
-            CumVol="",
-            CumNRewards=""
+            RewardTime="Index of reward timing.",
+            RWStartTime="Times when reward began.",
+            RWEndTime="Times when reward ended.",
+            NLicks="Number of licks.",
+            LickInWindow="Number of licks in selected window.",
+            Laser="Boolean indicating laser activity.",
+            CumVol="Cumulative volume.",
+            CumNRewards="Cumulative number of rewards.",
+            ISS0Time="Data needed for spikes.mat roundtrip.",
+            Arm0Time="Data needed for spikes.mat roundtrip."
         )
         stimulus_csv_column_names = dict(
             Time_ms="stimulus_times",
@@ -170,11 +183,11 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
         stimulus_column_description = dict(
             stimulus_elements="Type index of each stimulus element.",
             stimulus_times="Time of occurrence of each stimulus element.",
-            stimulus_amplitudes="",
+            stimulus_amplitudes="Amplitudes for each stimulus element. Unknown units.",
             stimulus_ordinalities="Ordinal position of the stimulus element in the train.",
-            stimulus_rises="",
-            stimulus_gngs="",
-            stimulus_shapes="",
+            stimulus_rises="Rises for each stimulus element. Unknown units.",
+            stimulus_gngs="GNGs for the stimulus element. Unknown units.",
+            stimulus_shapes="Shape index of the stimulus element.",
             stimulus_durations="Duration of the stimulus element in seconds.",
             stimulus_probabilities="Probability that the stimulus was presented; 0 if deterministic.",
             stimulus_piezo_labels="Manually assigned labels to each stimulus element."
