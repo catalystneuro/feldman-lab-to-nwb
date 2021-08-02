@@ -140,7 +140,7 @@ def clip_recording(
     trial_numbers: Iterable,
     trial_times: Iterable,
     recording: RecordingExtractor = None
-) -> RecordingExtractor:
+) -> SubRecordingExtractor:
     """
     Clip the recording to align with the trials information.
 
