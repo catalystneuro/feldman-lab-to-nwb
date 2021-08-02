@@ -1,11 +1,16 @@
 """Authors: Alessio Buccino and Cody Baker."""
 from tqdm import tqdm
 import numpy as np
+from typing import Iterable
 
-from spikeextractors import SpikeGLXRecordingExtractor
+from spikeextractors import SpikeGLXRecordingExtractor, RecordingExtractor, SubRecordingExtractor
 
 
-def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_channel: int, event_channel: int):
+def get_trials_info(
+    recording_nidq: SpikeGLXRecordingExtractor,
+    trial_ongoing_channel: int,
+    event_channel: int
+) -> (np.ndarray, np.ndarray, np.ndarray):
     """
     Parse trial number, stimulus number, and segment number for each trial.
 
@@ -73,7 +78,6 @@ def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_ch
 
     trial_numbers = []
     stimulus_numbers = []
-    segment_numbers = []
     trial_times = []
 
     # Extract hex digits for each trial
@@ -86,7 +90,6 @@ def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_ch
         i_start = start_idx
         trial_digits = ""
         stimulus_digits = ""
-        segment_digits = ""
 
         # First 4 digits (10ms each) are the trial number
         for i in range(4):
@@ -104,12 +107,52 @@ def get_trials_info(recording_nidq: SpikeGLXRecordingExtractor, trial_ongoing_ch
             i_start += tenms_interval
         stimulus_numbers.append(int(stimulus_digits, hex_base))
 
-        # Third 4 digits (10ms each) are the segment number
-        for i in range(4):
-            digit = np.median(scaled_tr_events[i_start + 10:i_start + tenms_interval - 10])
-            digit = int(round(digit))
-            segment_digits += hex_dict[digit]
-            i_start += tenms_interval
-        segment_numbers.append(int(segment_digits, hex_base))
+    return np.array(trial_numbers), np.array(stimulus_numbers), np.array(trial_times)
 
-    return trial_numbers, stimulus_numbers, segment_numbers, trial_times
+
+def clip_trials(
+    trial_numbers: Iterable,
+    stimulus_numbers: Iterable,
+    trial_times: Iterable
+) -> (Iterable, Iterable, Iterable):
+    """
+    Clip the trial information from get_trials_info to align correctly.
+
+    It was found in the test data that sometimes the nidq and recording start at unreset trial values; this clips that
+    end of the recording and returns all data and times starting from the new point (trial number zero).
+
+    Parameters
+    ----------
+    trial_numbers : Iterable
+        Array of sequential trial numbers.
+    stimulus_numbers : Iterable
+        Array of sequential stimulus numbers.
+    trial_times : Iterable
+        Array of start and stop times for the trial_numbers.
+    """
+    clip_idx = list(trial_numbers).index(0)
+    trial_times[clip_idx:, :]
+    trial_times = trial_times - trial_times[0, 0]
+    return trial_numbers[clip_idx:], stimulus_numbers[clip_idx:], trial_times
+
+
+def clip_recording(
+    trial_numbers: Iterable,
+    trial_times: Iterable,
+    recording: RecordingExtractor = None
+) -> RecordingExtractor:
+    """
+    Clip the recording to align with the trials information.
+
+    It was found in the test data that sometimes the nidq and recording start at unreset trial values; this clips that
+    end of the recording and returns all data and times starting from the new point (trial number zero).
+
+    Parameters
+    ----------
+    recording : RecordingExtractor
+        If passed, will return a SubRecordingExtractor clipped to align with the trials info.
+    """
+    return SubRecordingExtractor(
+        parent_recording=recording,
+        start_frame=recording.time_to_frame(times=trial_times[list(trial_numbers).index(0)][0])
+    )

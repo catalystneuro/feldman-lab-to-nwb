@@ -1,18 +1,14 @@
 """Authors: Cody Baker."""
 from pandas import DataFrame, read_csv
 from pathlib import Path
-from warnings import warn
-import re
 import numpy as np
 from typing import Dict, Iterable
 
-from ndx_events import AnnotatedEventsTable
 from nwb_conversion_tools.basedatainterface import BaseDataInterface
-from nwb_conversion_tools.utils.conversion_tools import get_module
 from pynwb import NWBFile
 from spikeextractors import SpikeGLXRecordingExtractor
 
-from .feldman_utils import get_trials_info
+from .feldman_utils import get_trials_info, clip_trials
 
 
 def add_trial_columns(
@@ -43,8 +39,7 @@ def add_trial_columns(
 
 def add_trials(
     nwbfile: NWBFile,
-    trial_starts: Iterable[float],
-    trial_stops: Iterable[float],
+    trial_times: Iterable[Iterable[float]],
     header_data: DataFrame,
     trial_data: DataFrame,
     stimulus_data: DataFrame,
@@ -63,7 +58,7 @@ def add_trials(
     )
 
     for n, k in enumerate(range(int(header_data["FirstTrialNum"]), int(header_data["LastTrialNum"]))):
-        trial_kwargs = dict(start_time=trial_starts[n], stop_time=trial_stops[n])
+        trial_kwargs = dict(start_time=trial_times[k][0], stop_time=trial_times[k][1])
         for csv_column_name, trial_column_name in trial_csv_column_names.items():
             trial_kwargs.update({trial_column_name: trial_data[csv_column_name][n]})
 
@@ -94,9 +89,12 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
     @classmethod
     def get_source_schema(cls):
         return dict(
-            required=['folder_path'],
+            required=["folder_path", "nidq_synch_file", "trial_ongoing_channel", "event_channel"],
             properties=dict(
-                folder_path=dict(type='string')
+                folder_path=dict(type="string"),
+                nidq_synch_file=dict(type="string"),
+                trial_ongoing_channel=dict(type="number"),
+                event_channel=dict(type="number"),
             )
         )
 
@@ -107,14 +105,7 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
         metadata = dict(NWBFile=dict(session_id=header_data["ExptName"].values[0]))
         return metadata
 
-    def run_conversion(
-        self,
-        nwbfile: NWBFile,
-        metadata: dict,
-        nidq_synch_file: str,
-        trial_ongoing_channel: int,
-        event_channel: int
-    ):
+    def run_conversion(self, nwbfile: NWBFile, metadata: dict):
         """
         Primary conversion function for the custom Feldman lab behavioral interface.
 
@@ -122,14 +113,17 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
         """
         folder_path = Path(self.source_data["folder_path"])
 
-        (trial_numbers, stimulus_numbers, segment_numbers_from_nidq, trial_times_from_nidq) = get_trials_info(
-            recording_nidq=SpikeGLXRecordingExtractor(file_path=nidq_synch_file),
-            trial_ongoing_channel=trial_ongoing_channel,
-            event_channel=event_channel
+        trial_numbers, stimulus_numbers, trial_times_from_nidq = get_trials_info(
+            recording_nidq=SpikeGLXRecordingExtractor(file_path=self.source_data["nidq_synch_file"]),
+            trial_ongoing_channel=self.source_data["trial_ongoing_channel"],
+            event_channel=self.source_data["event_channel"]
+        )
+        trial_numbers, stimulus_numbers, trial_times_from_nidq = clip_trials(
+            trial_numbers=trial_numbers,
+            stimulus_numbers=stimulus_numbers,
+            trial_times=trial_times_from_nidq
         )
         header_segments = [x for x in folder_path.iterdir() if "header" in x.name]
-        assert len(header_segments) == len(set(segment_numbers_from_nidq)), \
-            "Mismatch between number of segments extracted from nidq file and number of header.csv files!"
 
         exclude_columns = set(["TrNum", "Segment", "ISS0Time", "Arm0Time"])
         trial_csv_column_names = dict(
@@ -185,26 +179,20 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
             stimulus_probabilities="Probability that the stimulus was presented; 0 if deterministic.",
             stimulus_piezo_labels="Manually assigned labels to each stimulus element."
         )
-        # last_end_time = 0  # shift value for later segments
+        add_trial_columns(
+            nwbfile=nwbfile,
+            trial_csv_column_names=trial_csv_column_names,
+            trial_csv_column_descriptions=trial_csv_column_descriptions,
+            stimulus_column_names=stimulus_column_description.keys(),
+            stimulus_column_description=stimulus_column_description,
+            exclude_columns=exclude_columns
+        )
         for header_segment in header_segments:
             header_data = read_csv(header_segment, header=None, sep="\t", index_col=0).T
             trial_data = read_csv(str(header_segment).replace("header", "trials"), header=0, sep="\t")
             if trial_data["TrStartTime"].iloc[-1] == 0 and trial_data["TrEndTime"].iloc[-1] == 0:
-                trial_data.drop(index=-1)
+                trial_data.drop(trial_data.index[-1], inplace=True)
             stimulus_data = read_csv(str(header_segment).replace("header", "stimuli"), header=0, sep="\t")
-
-            segment_number = header_data["SegmentNum"]
-            p = re.compile("_S(\d+)_")
-            res = p.search(header_segment.name)
-            if res is not None and segment_number.values[0] != res.group(1):
-                warn(
-                    f"Segment number in file name ({header_segment.name}) does not match internal value! "
-                    "Using file name."
-                )
-            segment_number_from_file_name = int(res.group(1))
-            seg_index = segment_numbers_from_nidq == segment_number_from_file_name
-            segment_trial_start_times = trial_times_from_nidq[seg_index, 0]
-            segment_trial_stop_times = trial_times_from_nidq[seg_index, 1]
 
             trial_segment_csv_start_times = np.array(trial_data.loc[:, "TrStartTime"])
             for csv_column in trial_data:
@@ -212,23 +200,22 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
                     trial_data.loc[:, csv_column] = (
                         (
                             np.array(trial_data.loc[:, csv_column]) - trial_segment_csv_start_times
-                        ) / 1e3 + segment_trial_start_times
+                        ) / 1e3 + trial_times_from_nidq[trial_data.loc[:, "TrNum"], 0]
                     )
             trial_data.loc[:, "Laser"] = trial_data.loc[:, "Laser"].astype(bool)
-            stimulus_data.loc[:, "Time_ms"] = stimulus_data.loc[:, "Time_ms"] / 1e3 + segment_trial_start_times
+            last_trial = 0
+            m = 0
+            for j, (trial, offset) in enumerate(zip(stimulus_data.loc[:, "Trial"], stimulus_data.loc[:, "Time_ms"])):
+                if trial == last_trial:
+                    m += 1
+                else:
+                    last_trial = trial
+                    m = 1
+                stimulus_data.loc[j, "Time_ms"] = trial_times_from_nidq[trial, 0] + offset / 1e3 * m
 
-            add_trial_columns(
-                nwbfile=nwbfile,
-                trial_csv_column_names=trial_csv_column_names,
-                trial_csv_column_descriptions=trial_csv_column_descriptions,
-                stimulus_column_names=stimulus_column_description.keys(),
-                stimulus_column_description=stimulus_column_description,
-                exclude_columns=exclude_columns
-            )
             add_trials(
                 nwbfile=nwbfile,
-                trial_starts=segment_trial_start_times,
-                trial_stops=segment_trial_stop_times,
+                trial_times=trial_times_from_nidq,
                 trial_data=trial_data,
                 stimulus_data=stimulus_data,
                 header_data=header_data,
