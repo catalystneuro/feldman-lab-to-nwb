@@ -81,8 +81,8 @@ class ElectrodePositionSelector(widgets.VBox):
                     ],
                     marker=dict(
                         colorbar=dict(title="Responsitivity"),
-                        cmax=max(valid_unit_responses),
-                        cmin=min(valid_unit_responses),
+                        cmax=max(valid_unit_responses, default=0),
+                        cmin=min(valid_unit_responses, default=0),
                         color=channel_response,
                         colorscale="Viridis"
                     ),
@@ -209,8 +209,8 @@ class PSTHWithElectrodeSelector(widgets.HBox):
         self.psth_widget = PSTHWidget(units)
         self.electrode_position_selector = ElectrodePositionSelector(
             self.electrodes,
-            pre_alignment_window=[0, self.psth_widget.before_ft.value],
-            post_alignment_window=[0, self.psth_widget.after_ft.value],
+            pre_alignment_window=[0, -self.psth_widget.start_ft.value],
+            post_alignment_window=[0, self.psth_widget.end_ft.value],
             event_name=self.psth_widget.trial_event_controller.value
         )
         self.electrode_position_selector.scatter.on_click(self.update_point)
@@ -220,8 +220,8 @@ class PSTHWithElectrodeSelector(widgets.HBox):
             self.electrode_position_selector
         ]
         self.psth_widget.unit_controller.observe(self.handle_unit_controller, "value")
-        self.psth_widget.before_ft.observe(self.handle_response, "value")
-        self.psth_widget.after_ft.observe(self.handle_response, "value")
+        self.psth_widget.start_ft.observe(self.handle_response, "value")
+        self.psth_widget.end_ft.observe(self.handle_response, "value")
         self.psth_widget.trial_event_controller.observe(self.handle_response, "value")
 
     def handle_unit_controller(self, change):
@@ -230,8 +230,8 @@ class PSTHWithElectrodeSelector(widgets.HBox):
     def handle_response(self, change):
         self.electrode_position_selector.update_response(
             electrodes=self.electrodes,
-            pre_alignment_window=[0, self.psth_widget.before_ft.value],
-            post_alignment_window=[0, self.psth_widget.after_ft.value],
+            pre_alignment_window=[0, -self.psth_widget.start_ft.value],
+            post_alignment_window=[0, self.psth_widget.end_ft.value],
             event_name=self.psth_widget.trial_event_controller.value,
         )
 
@@ -239,5 +239,5 @@ class PSTHWithElectrodeSelector(widgets.HBox):
 default_neurodata_vis_spec[Units]["Grouped PSTH"] = PSTHWithElectrodeSelector
 
 
-def nwb2widget(node, neurodata_vis_spec=default_neurodata_vis_spec):
+def rapid_testing_nwb2widget(node, neurodata_vis_spec=default_neurodata_vis_spec):
     return base.nwb2widget(node, neurodata_vis_spec)

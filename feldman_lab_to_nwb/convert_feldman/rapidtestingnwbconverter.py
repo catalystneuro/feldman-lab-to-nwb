@@ -17,6 +17,6 @@ class RapidTestingNWBConverter(NWBConverter):
         if "session_id" not in metadata["NWBFile"]:
             metadata["NWBFile"].update(
                 session_id=f"Rapid_Testing_{str(datetime.now())}",
-                session_start_time=datetime.now()
+                session_start_time=str(datetime.now())
             )
         return metadata

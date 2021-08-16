@@ -1,3 +1,3 @@
 from .convert_feldman.feldmannwbconverter import FeldmanNWBConverter
 from .convert_feldman.rapidtestingnwbconverter import RapidTestingNWBConverter
-from .convert_feldman.feldman_electrode_widget import nwb2widget
+from .convert_feldman.feldman_electrode_widget import rapid_testing_nwb2widget
