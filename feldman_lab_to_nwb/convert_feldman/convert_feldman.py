@@ -10,7 +10,7 @@ from feldman_lab_to_nwb import FeldmanNWBConverter
 base_path = Path("E:/Feldman")
 
 # Name the NWBFile and point to the desired save path
-nwbfile_path = base_path / "LR_210406_g0_full_pipeline_stub_test.nwb"
+nwbfile_path = base_path / "LR_210406_g0_full_pipeline_test.nwb"
 
 # Point to the various files for the conversion
 session_date = "210406"  # YYMMDD
@@ -37,7 +37,7 @@ session_description = "Enter session description here."
 subject_info = dict(
     subject_id="Name of experimental subject",  # Required for upload to DANDDI
     description="Enter optional subject description here",
-    weight=0.0,  # Enter weight in kilograms
+    weight=str(0.0),  # Enter weight in kilograms
     age=duration_isoformat(timedelta(days=0)),
     species="Mus musculus",
     genotype="Enter subject genotype here",
@@ -45,7 +45,7 @@ subject_info = dict(
 )
 
 # Set some global conversion options here
-stub_test = True
+stub_test = False
 overwrite = True  # 'True' replaces the file if it exists, 'False' appends it with the new information
 
 # Run the conversion

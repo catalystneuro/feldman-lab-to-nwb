@@ -22,9 +22,14 @@ class RapidTestingDataInterface(SpikeGLXRecordingInterface):
         electrode_interface = SpikeGLXRecordingInterface(
             file_path=infer_ap_filepath(nidq_file_path=self.source_data["file_path"])
         )
+        metadata = electrode_interface.get_metadata()
+        metadata["Ecephys"]["Electrodes"] = []
         return electrode_interface.get_metadata()
 
-    def run_conversion(self, nwbfile: NWBFile, metadata: dict):
+    def get_conversion_options(self):
+        return dict()
+
+    def run_conversion(self, nwbfile: NWBFile, metadata: dict, trial_ongoing_channel: int, event_channel: int):
         """
         Rapid conversion of trial information recovered from the nidq file.
 
@@ -33,15 +38,14 @@ class RapidTestingDataInterface(SpikeGLXRecordingInterface):
         electrode_extractor = SpikeGLXRecordingExtractor(
             file_path=infer_ap_filepath(nidq_file_path=self.source_data["file_path"])
         )
-        # NwbRecordingExtractor.add_devices(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
-        # NwbRecordingExtractor.add_electrode_groups(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
-        # NwbRecordingExtractor.add_electrodes(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
         nwb_conversion_tools.utils.spike_interface.add_devices(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
         nwb_conversion_tools.utils.spike_interface.add_electrode_groups(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
         nwb_conversion_tools.utils.spike_interface.add_electrodes(recording=electrode_extractor, nwbfile=nwbfile, metadata=metadata)
 
-        (trial_numbers, stimulus_numbers, segment_numbers_from_nidq, trial_times_from_nidq) = get_trials_info(
-            recording_nidq=self.recording_extractor
+        trial_numbers, stimulus_numbers, trial_times_from_nidq = get_trials_info(
+            recording_nidq=self.recording_extractor,
+            trial_ongoing_channel=trial_ongoing_channel,
+            event_channel=event_channel,
         )
 
         nwbfile.add_trial_column(name="stim_number", description="The identifier value for stimulus type.")

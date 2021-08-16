@@ -6,7 +6,7 @@ from ipywidgets import widgets
 from pynwb.file import ElectrodeTable
 from pynwb.misc import Units
 from nwbwidgets import default_neurodata_vis_spec
-from nwbwidgets.misc import PSTHWidget
+from nwbwidgets.misc import PSTHWidget, TuningCurveWidget
 from nwbwidgets import base
 import plotly.graph_objects as go
 
@@ -81,8 +81,8 @@ class ElectrodePositionSelector(widgets.VBox):
                     ],
                     marker=dict(
                         colorbar=dict(title="Responsitivity"),
-                        cmax=max(valid_unit_responses),
-                        cmin=min(valid_unit_responses),
+                        cmax=max(valid_unit_responses, default=0),
+                        cmin=min(valid_unit_responses, default=0),
                         color=channel_response,
                         colorscale="Viridis"
                     ),
@@ -209,8 +209,8 @@ class PSTHWithElectrodeSelector(widgets.HBox):
         self.psth_widget = PSTHWidget(units)
         self.electrode_position_selector = ElectrodePositionSelector(
             self.electrodes,
-            pre_alignment_window=[0, self.psth_widget.before_ft.value],
-            post_alignment_window=[0, self.psth_widget.after_ft.value],
+            pre_alignment_window=[0, -self.psth_widget.start_ft.value],
+            post_alignment_window=[0, self.psth_widget.end_ft.value],
             event_name=self.psth_widget.trial_event_controller.value
         )
         self.electrode_position_selector.scatter.on_click(self.update_point)
@@ -220,8 +220,8 @@ class PSTHWithElectrodeSelector(widgets.HBox):
             self.electrode_position_selector
         ]
         self.psth_widget.unit_controller.observe(self.handle_unit_controller, "value")
-        self.psth_widget.before_ft.observe(self.handle_response, "value")
-        self.psth_widget.after_ft.observe(self.handle_response, "value")
+        self.psth_widget.start_ft.observe(self.handle_response, "value")
+        self.psth_widget.end_ft.observe(self.handle_response, "value")
         self.psth_widget.trial_event_controller.observe(self.handle_response, "value")
 
     def handle_unit_controller(self, change):
@@ -230,14 +230,76 @@ class PSTHWithElectrodeSelector(widgets.HBox):
     def handle_response(self, change):
         self.electrode_position_selector.update_response(
             electrodes=self.electrodes,
-            pre_alignment_window=[0, self.psth_widget.before_ft.value],
-            post_alignment_window=[0, self.psth_widget.after_ft.value],
+            pre_alignment_window=[0, -self.psth_widget.start_ft.value],
+            post_alignment_window=[0, self.psth_widget.end_ft.value],
             event_name=self.psth_widget.trial_event_controller.value,
         )
 
 
+class TCWithElectrodeSelector(widgets.VBox):
+    """Custom widget for combining Tuning Curves with the electrode grid selector, communicating between the two."""
+
+    def update_point(self, trace, points, selector):
+        n_channels = len(self.electrode_position_selector.scatter.marker.size)
+        is_unit = np.array(self.electrode_position_selector.scatter.marker.size) >= DETECTED_SIZE
+        index = points.point_inds[0]
+        if is_unit[index]:
+            s = np.array([ELECTRODE_SIZE] * n_channels)
+            s[is_unit] = DETECTED_SIZE
+            s[index] = SELECTED_SIZE
+
+            with self.electrode_position_selector.fig.batch_update():
+                self.electrode_position_selector.scatter.marker.size = s
+
+        self.tuning_curve.children[0].unit_controller.value = np.where(
+            np.array(self.electrode_position_selector.scatter.marker.size)[is_unit] == SELECTED_SIZE
+        )[0][0]
+
+    def __init__(self, units: Units):
+        """
+        Visualize PSTH with the ability to select electrodes from clicking within the grid.
+
+        Parameters
+        ----------
+        units : Units
+            Units Table of an NWBFile.
+        """
+        super().__init__()
+        self.electrodes = units.get_ancestor("NWBFile").electrodes
+
+        self.tuning_curve = TuningCurveWidget(units)
+        self.electrode_position_selector = ElectrodePositionSelector(
+            self.electrodes,
+            pre_alignment_window=[0, -self.tuning_curve.children[0].start_ft.value],
+            post_alignment_window=[0, self.tuning_curve.children[0].end_ft.value],
+            event_name=self.tuning_curve.children[0].trial_event_controller.value
+        )
+        self.electrode_position_selector.scatter.on_click(self.update_point)
+
+        self.children = [
+            self.tuning_curve,
+            self.electrode_position_selector
+        ]
+        self.tuning_curve.children[0].unit_controller.observe(self.handle_unit_controller, "value")
+        self.tuning_curve.children[0].start_ft.observe(self.handle_response, "value")
+        self.tuning_curve.children[0].end_ft.observe(self.handle_response, "value")
+        self.tuning_curve.children[0].trial_event_controller.observe(self.handle_response, "value")
+
+    def handle_unit_controller(self, change):
+        self.electrode_position_selector.update_selected(electrodes=self.electrodes, index=change["owner"].index)
+
+    def handle_response(self, change):
+        self.electrode_position_selector.update_response(
+            electrodes=self.electrodes,
+            pre_alignment_window=[0, -self.tuning_curve.children[0].start_ft.value],
+            post_alignment_window=[0, self.tuning_curve.children[0].end_ft.value],
+            event_name=self.tuning_curve.children[0].trial_event_controller.value,
+        )
+
+
 default_neurodata_vis_spec[Units]["Grouped PSTH"] = PSTHWithElectrodeSelector
+default_neurodata_vis_spec[Units]["Tuning Curves"] = TCWithElectrodeSelector
 
 
-def nwb2widget(node, neurodata_vis_spec=default_neurodata_vis_spec):
+def rapid_testing_nwb2widget(node, neurodata_vis_spec=default_neurodata_vis_spec):
     return base.nwb2widget(node, neurodata_vis_spec)
