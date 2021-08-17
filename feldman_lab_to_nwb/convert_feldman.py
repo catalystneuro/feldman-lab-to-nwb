@@ -9,14 +9,14 @@ from feldman_lab_to_nwb import FeldmanNWBConverter
 # Point to the base folder path for both recording data and Virmen
 base_path = Path("E:/Feldman")
 
-# Name the NWBFile and point to the desired save path
-nwbfile_path = base_path / "LR_210406_g0_full_pipeline_test.nwb"
-
 # Point to the various files for the conversion
-session_date = "210406"  # YYMMDD
+session_date = "210209"  # YYMMDD
 experiment_folder = base_path / "Neuropixels_Feldman" / f"{session_date}"
 
-behavior_folder_path = experiment_folder / "IGOR"
+# Name the NWBFile and point to the desired save path
+nwbfile_path = base_path / f"LR_{session_date}_g0_full_pipeline_test_2.nwb"
+
+behavior_folder_path = experiment_folder / "ADRIAN"
 
 sess_name = f"LR_{session_date}_g0"
 raw_data_file = (
@@ -27,8 +27,8 @@ nidq_synch_file = str(experiment_folder / "SpikeGLX" / sess_name / f"{sess_name}
 
 # Necesssary information for decoding the nidq synchronization correctly
 # These are the indices of the channels in the nidq_synch_file responsible for tracking the two streams
-trial_ongoing_channel = 2
-event_channel = 3
+trial_ongoing_channel = 3
+event_channel = 4
 
 # Enter Session and Subject information here - uncomment any fields you want to include
 session_description = "Enter session description here."
@@ -37,7 +37,7 @@ session_description = "Enter session description here."
 subject_info = dict(
     subject_id="Name of experimental subject",  # Required for upload to DANDDI
     description="Enter optional subject description here",
-    weight=str(0.0),  # Enter weight in kilograms
+    weight=0.0,  # Enter weight in kilograms
     age=duration_isoformat(timedelta(days=0)),
     species="Mus musculus",
     genotype="Enter subject genotype here",
@@ -45,7 +45,7 @@ subject_info = dict(
 )
 
 # Set some global conversion options here
-stub_test = False
+stub_test = True
 overwrite = True  # 'True' replaces the file if it exists, 'False' appends it with the new information
 
 # Run the conversion

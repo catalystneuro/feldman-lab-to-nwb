@@ -122,11 +122,12 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
             trial_ongoing_channel=self.source_data["trial_ongoing_channel"],
             event_channel=self.source_data["event_channel"]
         )
-        trial_numbers, stimulus_numbers, trial_times_from_nidq = clip_trials(
-            trial_numbers=trial_numbers,
-            stimulus_numbers=stimulus_numbers,
-            trial_times=trial_times_from_nidq
-        )
+        if trial_numbers[0] != 0:
+            trial_numbers, stimulus_numbers, trial_times_from_nidq = clip_trials(
+                trial_numbers=trial_numbers,
+                stimulus_numbers=stimulus_numbers,
+                trial_times=trial_times_from_nidq
+            )
         header_segments = [x for x in folder_path.iterdir() if "header" in x.name]
         first_header = read_csv(header_segments[0], header=None, sep="\t", index_col=0).T
         nwbfile.trials = TimeIntervals(

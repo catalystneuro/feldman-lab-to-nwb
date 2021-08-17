@@ -131,7 +131,7 @@ def clip_trials(
         Array of start and stop times for the trial_numbers.
     """
     clip_idx = list(trial_numbers).index(0)
-    trial_times[clip_idx:, :]
+    trial_times = trial_times[clip_idx:, :]
     trial_times = trial_times - trial_times[0, 0]
     return trial_numbers[clip_idx:], stimulus_numbers[clip_idx:], trial_times
 
