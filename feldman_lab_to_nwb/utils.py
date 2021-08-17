@@ -161,6 +161,7 @@ def clip_recording(
 def convert_nwb_to_spikes_mat(
     nwbfile_path: PathType,
     matfile_path: PathType,
+    write_waveforms: bool = False,
     n_waveform_samples: int = 37,
     n_waveform_channels: int = 4
 ):
@@ -173,19 +174,10 @@ def convert_nwb_to_spikes_mat(
         Path to the input NWBFile.
     matfile_path : PathType
         Path to the output .mat file.
-    filter_parameters : dict, optional
-        The type and parameters of the filter(s) applied to the recording before spike sorting.
-        Must be of the form
-            dict(
-                type="name of type",
-                parameter_1=value,
-                ...
-            )
-        The default is empty.
-    sorter_parameters : dict, optional
-        The type and parameters of the spike sorter applied to the recording.
-        Recommended to be a string conversion of the dictionary passed into the spikesorters.run_sorters() arguments.
-        The default is empty.
+    write_waveforms : bool, optional
+        If True, writes the waveform data from the raw acquisition to the .mat file.
+        Loads as contiguous array, and therefore requires a large amount of RAM.
+        The default is False.
     n_waveform_samples : int, optional
         Number of recording frames to extract following each spike time for each unit. The default is 37.
     n_waveform_channels : int, optional
@@ -202,19 +194,17 @@ def convert_nwb_to_spikes_mat(
         trials = nwbfile.trials
         n_trials = len(trials)
 
-        out_dict["spikes"].update(
-            acq_times=units.spike_times[()],
-            nspikes=len(units.spike_times)
-        )
+        out_dict["spikes"].update(acq_times=units.spike_times[()])
+        out_dict["spikes"].update(nspikes=len(out_dict["spikes"]["acq_times"]))
         spike_trials = np.array([0] * out_dict["spikes"]["nspikes"])
         spike_times_in_trials = np.array([0.] * out_dict["spikes"]["nspikes"])
         trial = 0
         trial_start_time = trials.start_time[()]
         for j, spike_time in enumerate(out_dict["spikes"]["acq_times"]):
-            if spike_time > trial_start_time[trial+1]:
+            if spike_time > trial_start_time[min(trial, n_trials-1)]:
                 trial += 1
             spike_trials[j] = trial + 1
-            spike_times_in_trials[j] = spike_time - trial_start_time[trial]
+            spike_times_in_trials[j] = spike_time - trial_start_time[min(trial, n_trials-1)]
 
         acquisition_name = list(nwbfile.acquisition)[0]
         sampling_frequency = nwbfile.acquisition[acquisition_name].rate
@@ -236,16 +226,17 @@ def convert_nwb_to_spikes_mat(
             max_channel = nwbfile.units.max_channel.data[spike_idx]
             channel_distances = np.linalg.norm(channel_locations - channel_locations[max_channel], axis=1)
             closest_channels = channel_ids[np.argsort(channel_distances)]
-            waveforms.append(
-                nwbfile.acquisition[acquisition_name].data[
-                    spike_frame:spike_frame+n_waveform_samples,
-                    np.sort(closest_channels[:n_waveform_channels])
-                ] * nwbfile.acquisition["ElectricalSeries_raw"].conversion
-            )
+            if write_waveforms:
+                waveforms.append(
+                    nwbfile.acquisition[acquisition_name].data[
+                        spike_frame:spike_frame+n_waveform_samples,
+                        np.sort(closest_channels[:n_waveform_channels])
+                    ] * nwbfile.acquisition["ElectricalSeries_raw"].conversion
+                )
 
         out_dict["spikes"].update(
             assigns=assigns,
-            att_fname=str(nwbfile_path.absolute()),
+            att_fname=str(Path(nwbfile_path).absolute()),
             info=dict(),
             labels=[[x, y] for x, y in zip(list(range(1, n_units + 1)), list(range(1, n_units + 1)))],
             offline_filter=filter_parameters,
@@ -302,12 +293,6 @@ def convert_nwb_to_spikes_mat(
                 CumVol=nwbfile.trials.cumulative_volume[()],
                 StimOrder=nwbfile.trials.stimulus_order[()],
                 Laser=nwbfile.trials.laser_is_on[()],
-                FirstTrialNum=1,
-                LastTrialNum=1,
-                StimOnsetTime=1,
-                StimLayout=1,
-                Segment=1,
-                SegmentNum=1,
             ),
             experiment=dict(
                 Index=1,
