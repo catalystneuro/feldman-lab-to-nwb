@@ -165,8 +165,8 @@ class ElectrodePositionSelector(widgets.VBox):
         channel_response = np.array([np.nan] * n_channels)
         channel_response[unit_ids] = responses
 
-        self.scatter.marker.cmax = max(responses[~np.isnan(responses)])
-        self.scatter.marker.cmin = min(responses[~np.isnan(responses)])
+        self.scatter.marker.cmax = max(responses[~np.isnan(responses)], default=0)
+        self.scatter.marker.cmin = min(responses[~np.isnan(responses)], default=0)
         self.scatter.marker.color = channel_response
 
         self.scatter.text = [

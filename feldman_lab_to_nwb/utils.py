@@ -213,8 +213,10 @@ def convert_nwb_to_spikes_mat(
         sorter_parameters = dict(sortparams=parameters["sorter_parameters"], Fs=sampling_frequency)
 
         assigns = []
+        last_range = 0
         for unit, idx_range in zip(nwbfile.units.id[()], nwbfile.units.spike_times_index.data[()]):
-            assigns.extend([unit] * idx_range)
+            assigns.extend([unit] * (idx_range - last_range))
+            last_range = idx_range
 
         waveforms = []
         channel_locations = np.array(
