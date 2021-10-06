@@ -224,8 +224,12 @@ def convert_nwb_to_spikes_mat(
 
         assigns = []
         last_range = 0
-        for unit, idx_range in zip(nwbfile.units.id[()], nwbfile.units.spike_times_index.data[()]):
-            assigns.extend([unit] * (idx_range - last_range))
+        unit_map = dict()
+        for unit_idx, (unit_id, idx_range) in enumerate(
+            zip(nwbfile.units.id[()], nwbfile.units.spike_times_index.data[()])
+        ):
+            unit_map.update({unit_id: unit_idx})
+            assigns.extend([unit_id] * (idx_range - last_range))
             last_range = idx_range
 
         waveforms = []
@@ -234,9 +238,9 @@ def convert_nwb_to_spikes_mat(
                 [[x, y] for x, y in zip(nwbfile.electrodes.rel_x[()], nwbfile.electrodes.rel_y[()])]
             )
             channel_ids = nwbfile.electrodes.id[()]
-            for spike_idx, spike_time in zip(assigns, out_dict["spikes"]["acq_times"]):
+            for spike_id, spike_time in zip(assigns, out_dict["spikes"]["acq_times"]):
                 spike_frame = round(spike_time / sampling_frequency)
-                max_channel = nwbfile.units.max_channel.data[spike_idx]
+                max_channel = nwbfile.units.max_channel.data[unit_map[spike_id]]
                 channel_distances = np.linalg.norm(channel_locations - channel_locations[max_channel], axis=1)
                 closest_channels = channel_ids[np.argsort(channel_distances)]
                 waveforms.append(
@@ -256,7 +260,7 @@ def convert_nwb_to_spikes_mat(
             spiketimes=spike_times_in_trials,
             trials=spike_trials,
             unwrapped_times=units.spike_times[()] - trial_start_time[0],
-            # waveforms=waveforms
+            waveforms=waveforms
         )
 
         def unique_indexes(ls):
