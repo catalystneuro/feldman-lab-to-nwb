@@ -123,9 +123,8 @@ class FeldmanBehaviorDataInterface(BaseDataInterface):
             event_channel=self.source_data["event_channel"]
         )
         if trial_numbers[0] != 0:
-            trial_numbers, stimulus_numbers, trial_times_from_nidq = clip_trials(
+            trial_numbers, trial_times_from_nidq = clip_trials(
                 trial_numbers=trial_numbers,
-                stimulus_numbers=stimulus_numbers,
                 trial_times=trial_times_from_nidq
             )
         header_segments = [x for x in folder_path.iterdir() if "header" in x.name]
