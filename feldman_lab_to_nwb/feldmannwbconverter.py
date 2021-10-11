@@ -34,6 +34,7 @@ class FeldmanNWBConverter(NWBConverter):
         if trial_numbers[0] != 0:
             for interface in set(["SpikeGLXRecording", "SpikeGLXLFP"]).intersection(self.data_interface_objects):
                 self.data_interface_objects[interface].recording_extractor = clip_recording(
+                    trial_numbers=trial_numbers,
                     trial_times=trial_times,
                     recording=self.data_interface_objects[interface].recording_extractor
                 )

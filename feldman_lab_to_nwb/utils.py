@@ -60,8 +60,7 @@ def get_trials_info(
     tr_trial = recording_nidq.get_traces(channel_ids=[trial_ongoing_channel])[0]
     tr_events = recording_nidq.get_traces(channel_ids=[event_channel])[0]
     scaled_tr_events = tr_events * (hex_base - 1) / voltage_range
-    scaled_tr_events = (scaled_tr_events - min(scaled_tr_events)) / np.ptp(scaled_tr_events) * (hex_base - 1)
-    scaled_tr_events -= np.median(scaled_tr_events)
+    scaled_tr_events = (scaled_tr_events - np.median(scaled_tr_events)) / np.max(scaled_tr_events) * (hex_base - 1)
 
     tr_trial_bin = np.zeros(tr_trial.shape, dtype=int)
     tr_trial_bin[tr_trial > np.max(tr_trial) // 2] = 1
@@ -113,8 +112,9 @@ def get_trials_info(
 
 def clip_trials(
     trial_numbers: Iterable,
+    stimulus_numbers: Iterable,
     trial_times: Iterable
-) -> (Iterable, Iterable):
+) -> (Iterable, Iterable, Iterable):
     """
     Clip the trial information from get_trials_info to align correctly.
 
@@ -130,13 +130,14 @@ def clip_trials(
     trial_times : Iterable
         Array of start and stop times for the trial_numbers.
     """
-    # if trial_numbers don't start from 0, reset it to 0
-    trial_numbers -= trial_numbers[0]
+    clip_idx = list(trial_numbers).index(0)
+    trial_times = trial_times[clip_idx:, :]
     trial_times = trial_times - trial_times[0, 0]
-    return trial_numbers, trial_times
+    return trial_numbers[clip_idx:], stimulus_numbers[clip_idx:], trial_times
 
 
 def clip_recording(
+    trial_numbers: Iterable,
     trial_times: Iterable,
     recording: RecordingExtractor = None
 ) -> SubRecordingExtractor:
@@ -153,7 +154,7 @@ def clip_recording(
     """
     return SubRecordingExtractor(
         parent_recording=recording,
-        start_frame=recording.time_to_frame(times=trial_times[0, 0])
+        start_frame=recording.time_to_frame(times=trial_times[list(trial_numbers).index(0)][0])
     )
 
 
