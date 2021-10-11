@@ -208,27 +208,41 @@ def convert_nwb_to_spikes_mat(
 
         acquisition_name = list(nwbfile.acquisition)[0]
         sampling_frequency = nwbfile.acquisition[acquisition_name].rate
-        parameters = json.loads(nwbfile.units.description)  # Assumes this was made by the Feldman processing pipeline
+
+        # Some None values may be present in the dumped json string for the paramters, causing an error in scipy write
+        def dict_clean(items):
+            result = dict()
+            for key, value in items:
+                if value is None:
+                    value = "N/A"
+                result[key] = value
+            return result
+        # Assumes this was made by the Feldman processing pipeline
+        parameters = json.loads(nwbfile.units.description, object_pairs_hook=dict_clean)
         filter_parameters = parameters["filter_parameters"]
         sorter_parameters = dict(sortparams=parameters["sorter_parameters"], Fs=sampling_frequency)
 
         assigns = []
         last_range = 0
-        for unit, idx_range in zip(nwbfile.units.id[()], nwbfile.units.spike_times_index.data[()]):
-            assigns.extend([unit] * (idx_range - last_range))
+        unit_map = dict()
+        for unit_idx, (unit_id, idx_range) in enumerate(
+            zip(nwbfile.units.id[()], nwbfile.units.spike_times_index.data[()])
+        ):
+            unit_map.update({unit_id: unit_idx})
+            assigns.extend([unit_id] * (idx_range - last_range))
             last_range = idx_range
 
         waveforms = []
-        channel_locations = np.array(
-            [[x, y] for x, y in zip(nwbfile.electrodes.rel_x[()], nwbfile.electrodes.rel_y[()])]
-        )
-        channel_ids = nwbfile.electrodes.id[()]
-        for spike_idx, spike_time in zip(assigns, out_dict["spikes"]["acq_times"]):
-            spike_frame = round(spike_time / sampling_frequency)
-            max_channel = nwbfile.units.max_channel.data[spike_idx]
-            channel_distances = np.linalg.norm(channel_locations - channel_locations[max_channel], axis=1)
-            closest_channels = channel_ids[np.argsort(channel_distances)]
-            if write_waveforms:
+        if write_waveforms:
+            channel_locations = np.array(
+                [[x, y] for x, y in zip(nwbfile.electrodes.rel_x[()], nwbfile.electrodes.rel_y[()])]
+            )
+            channel_ids = nwbfile.electrodes.id[()]
+            for spike_id, spike_time in zip(assigns, out_dict["spikes"]["acq_times"]):
+                spike_frame = round(spike_time / sampling_frequency)
+                max_channel = nwbfile.units.max_channel.data[unit_map[spike_id]]
+                channel_distances = np.linalg.norm(channel_locations - channel_locations[max_channel], axis=1)
+                closest_channels = channel_ids[np.argsort(channel_distances)]
                 waveforms.append(
                     nwbfile.acquisition[acquisition_name].data[
                         spike_frame:spike_frame+n_waveform_samples,
