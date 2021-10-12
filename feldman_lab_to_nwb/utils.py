@@ -60,7 +60,7 @@ def get_trials_info(
     tr_trial = recording_nidq.get_traces(channel_ids=[trial_ongoing_channel])[0]
     tr_events = recording_nidq.get_traces(channel_ids=[event_channel])[0]
     scaled_tr_events = tr_events * (hex_base - 1) / voltage_range
-    scaled_tr_events = (scaled_tr_events - min(scaled_tr_events)) / np.ptp(scaled_tr_events) * (hex_base - 1)
+    scaled_tr_events = (scaled_tr_events - np.median(scaled_tr_events)) / np.max(scaled_tr_events) * (hex_base - 1)
 
     tr_trial_bin = np.zeros(tr_trial.shape, dtype=int)
     tr_trial_bin[tr_trial > np.max(tr_trial) // 2] = 1
