@@ -194,17 +194,24 @@ def convert_nwb_to_spikes_mat(
         trials = nwbfile.trials
         n_trials = len(trials)
 
-        out_dict["spikes"].update(acq_times=units.spike_times[()])
+        argsort_spiketimes = np.argsort(units.spike_times[()])
+        acq_times = [units.spike_times[idx] for idx in argsort_spiketimes]
+        out_dict["spikes"].update(acq_times=acq_times)
         out_dict["spikes"].update(nspikes=len(out_dict["spikes"]["acq_times"]))
         spike_trials = np.array([0] * out_dict["spikes"]["nspikes"])
         spike_times_in_trials = np.array([0.] * out_dict["spikes"]["nspikes"])
-        trial = 0
+        trial_index = 0
+        incr_trial = True
         trial_start_time = trials.start_time[()]
+        last_trial_start_time = 0
         for j, spike_time in enumerate(out_dict["spikes"]["acq_times"]):
-            if spike_time > trial_start_time[min(trial, n_trials-1)]:
-                trial += 1
-            spike_trials[j] = trial + 1
-            spike_times_in_trials[j] = spike_time - trial_start_time[min(trial, n_trials-1)]
+            if incr_trial and spike_time > trial_start_time[trial_index]:
+                last_trial_start_time = trial_start_time[trial_index]
+                trial_index += 1
+                if trial_index == n_trials-1:
+                    incr_trial = False
+            spike_trials[j] = trial_index + 1
+            spike_times_in_trials[j] = spike_time - last_trial_start_time
 
         acquisition_name = list(nwbfile.acquisition)[0]
         sampling_frequency = nwbfile.acquisition[acquisition_name].rate
@@ -251,7 +258,7 @@ def convert_nwb_to_spikes_mat(
                 )
 
         out_dict["spikes"].update(
-            assigns=assigns,
+            assigns=np.array(assigns)[argsort_spiketimes],
             att_fname=str(Path(nwbfile_path).absolute()),
             info=dict(),
             labels=[[x, y] for x, y in zip(list(range(1, n_units + 1)), list(range(1, n_units + 1)))],
@@ -259,7 +266,7 @@ def convert_nwb_to_spikes_mat(
             params=sorter_parameters,
             spiketimes=spike_times_in_trials,
             trials=spike_trials,
-            unwrapped_times=units.spike_times[()] - trial_start_time[0],
+            unwrapped_times=np.array(out_dict["spikes"]["acq_times"]) - trial_start_time[0],
             waveforms=waveforms
         )
 
