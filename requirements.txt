@@ -5,5 +5,5 @@ h5py==2.10.0
 isodate==0.6.0
 spikewidgets==0.5.3
 spiketoolkit==0.7.5
-nwb-conversion-tools @ git+https://github.com/catalystneuro/nwb-conversion-tools.git@bd49291da7ef79c42079d9aaa70628b9e230b247  #v0.8.10
+nwb-conversion-tools @ git+https://github.com/catalystneuro/nwb-conversion-tools.git@bd49291da7ef79c42079d9aaa70628b9e230b247  # v0.8.10
 nwbwidgets @ git+https://github.com/NeurodataWithoutBorders/nwb-jupyter-widgets@master
